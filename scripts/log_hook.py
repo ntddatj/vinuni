@@ -129,8 +129,16 @@ def normalize(data: dict, tool: str) -> dict | None:
             "tool_args": data.get("toolArgs"),
         })
 
-    # Skip empty/noise events
-    if not base.get("prompt") and event not in ("Stop", "stop", "SessionEnd", "sessionEnd", "AfterModel"):
+    # Skip only true noise: no prompt AND no tool-specific payload (tool_input,
+    # response_summary, tool_response, tool_args, files_context). Previously
+    # this only checked `prompt`, which dropped Claude Bash/Edit events (their
+    # tool_input has `command` / `file_path`, not `prompt` or `content`) and
+    # any Gemini/Cursor/Copilot turn that carried context but no plain prompt.
+    _PAYLOAD_KEYS = ("prompt", "tool_input", "response_summary",
+                     "tool_response", "tool_args", "files_context")
+    _LIFECYCLE_EVENTS = ("Stop", "stop", "SessionEnd", "sessionEnd", "AfterModel")
+    has_payload = any(base.get(k) for k in _PAYLOAD_KEYS)
+    if not has_payload and event not in _LIFECYCLE_EVENTS:
         return None
 
     return base
