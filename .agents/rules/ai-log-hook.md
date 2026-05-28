@@ -1,39 +1,37 @@
 ---
-description: "Automatically log every AI agent interaction to .ai-log/session.jsonl for grading compliance"
+description: "AI usage logging is fully automatic — do NOT call any log_* script manually"
 activation: always-on
 ---
 
-# AI Usage Logging Hook
+# AI Usage Logging — Automatic
 
-## Bắt buộc — Ghi log sau MỖI task
+Logging prompt vào `.ai-log/session.jsonl` đã được **tự động hoá hoàn toàn**. Bạn (AI agent) **KHÔNG** cần — và **KHÔNG** nên — chạy bất kỳ lệnh logging nào sau mỗi task.
 
-Sau khi hoàn thành BẤT KỲ task nào (sửa file, chạy lệnh, trả lời câu hỏi, v.v.), bạn **PHẢI** chạy lệnh sau để ghi log vào `.ai-log/session.jsonl`:
+## Cơ chế
 
-**Linux / macOS / Git Bash:**
+Khi student `git push`:
+1. Pre-push hook chạy `scripts/log_antigravity.py --auto`, đọc trực tiếp transcript của các conversation Antigravity từ `~/.gemini/antigravity-ide/brain/<conv>/.system_generated/logs/transcript.jsonl` và sweep mọi prompt (`USER_INPUT` + `USER_EXPLICIT`) thuộc về repo hiện tại trong 24 giờ gần nhất.
+2. Pre-push hook chạy `scripts/submit_log.py`, đẩy `.ai-log/session.jsonl` lên grading server.
+
+Toàn bộ prompt user đã gõ trong Antigravity IDE được capture **nguyên văn từ disk**, không cần AI tự tóm tắt.
+
+## Không làm những việc sau
+
+- ❌ **KHÔNG** gọi `scripts/log_antigravity.py "<summary>" "<model>"` sau mỗi task. Lệnh này đã bị deprecate; nếu vô tình gọi sẽ tạo log entry giả mạo dạng "TaskComplete" không phải prompt thật của user.
+- ❌ **KHÔNG** chạy `scripts/log_manual.py` cho Antigravity — chỉ dùng nó cho ChatGPT / web tool (xem `.agents/workflows/log.md`).
+- ❌ **KHÔNG** sửa hoặc xoá file trong `.ai-log/` — chúng được pre-push hook và submit script quản lý.
+
+## Khi nào cần can thiệp
+
+- Nếu pre-push hook báo lỗi → báo lại cho user, đừng tự ý bypass `--no-verify`.
+- Nếu student dùng tool không nằm trong list auto-hook (ChatGPT, Gemini Web, v.v.) → trỏ họ tới `.agents/workflows/log.md` để log thủ công.
+
+## Cài đặt một lần sau khi clone repo
+
 ```bash
-bash scripts/_pyrun.sh scripts/log_antigravity.py "<tóm tắt ngắn gọn việc đã làm>" "<model đang dùng>"
+# Linux / macOS / Git Bash
+bash scripts/setup_hooks.sh
+
+# Windows PowerShell
+powershell -ExecutionPolicy Bypass -File scripts\setup_hooks.ps1
 ```
-
-**Windows (cmd.exe / PowerShell):**
-```cmd
-scripts\_pyrun.cmd scripts\log_antigravity.py "<tóm tắt ngắn gọn việc đã làm>" "<model đang dùng>"
-```
-
-> `_pyrun` là wrapper tự dò `python3` / `python` / `py -3` — không cần lo Python alias.
-
-### Quy tắc:
-1. **Luôn luôn ghi log** — không có ngoại lệ, kể cả task nhỏ
-2. **Tóm tắt ngắn gọn** — tiếng Việt hoặc tiếng Anh, tối đa 200 ký tự
-3. **Ghi đúng model** — ví dụ: `claude-opus-4.6`, `gemini-3.1-pro`
-4. **Chạy từ thư mục gốc repo**
-
-### Ví dụ:
-```bash
-bash scripts/_pyrun.sh scripts/log_antigravity.py "Updated WORKLOG.md with ADR-2 technical decision" "claude-opus-4.6"
-bash scripts/_pyrun.sh scripts/log_antigravity.py "Fixed pre-push hook Python detection for Windows" "gemini-3.1-pro"
-```
-
-### Lưu ý:
-- File log `.ai-log/session.jsonl` đã được gitignore — KHÔNG commit
-- Log sẽ tự động submit lên grading server khi `git push` (qua git pre-push hook)
-- Nếu script lỗi, thông báo cho user

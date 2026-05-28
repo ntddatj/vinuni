@@ -7,11 +7,12 @@ HOOK_FILE=".git/hooks/pre-push"
 
 cat > "$HOOK_FILE" <<'EOF'
 #!/usr/bin/env bash
-# Submit AI logs to grading server before push.
+# Pre-push: sweep recent Antigravity / Gemini prompts, then submit AI logs.
 # Uses the cross-platform Python launcher so it works whether the user
 # has python3, python, or only the `py` launcher (Windows).
+bash scripts/_pyrun.sh scripts/log_antigravity.py --auto || true
 bash scripts/_pyrun.sh scripts/submit_log.py || true
-exit 0  # Never block push, even if submission fails
+exit 0  # Never block push, even if either step fails
 EOF
 
 chmod +x "$HOOK_FILE"
