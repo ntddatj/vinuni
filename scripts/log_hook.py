@@ -55,6 +55,17 @@ def normalize(data: dict, tool: str) -> dict | None:
     event = data.get("hook_event_name") or data.get("event", "")
     ts = datetime.now(VN_TZ).isoformat()
 
+    # Resolve repo from git origin. When cwd is not a git working tree (or
+    # origin isn't set), skip the event entirely — these entries can't be
+    # tied back to a team on the server and would just clutter the pending
+    # queue forever.
+    origin = git("git remote get-url origin")
+    if not origin:
+        return None
+    repo = origin.rstrip("/").split("/")[-1]
+    if repo.endswith(".git"):
+        repo = repo[:-4]
+
     base = {
         "ts": ts,
         "tool": tool,
@@ -65,7 +76,7 @@ def normalize(data: dict, tool: str) -> dict | None:
             data.get("generation_id") or ""
         ),
         "model": data.get("model", ""),
-        "repo": git("git remote get-url origin").split("/")[-1].replace(".git", ""),
+        "repo": repo,
         "branch": git("git rev-parse --abbrev-ref HEAD"),
         "commit": git("git rev-parse --short HEAD"),
         "student": git("git config user.email"),
