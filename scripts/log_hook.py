@@ -156,7 +156,10 @@ def normalize(data: dict, tool: str) -> dict | None:
 
 
 def main():
-    raw = sys.stdin.read().strip()
+    # Read stdin as UTF-8 explicitly. On Windows, sys.stdin defaults to the
+    # system code page (e.g. cp1252), which corrupts non-Latin1 prompts
+    # (Vietnamese, CJK, emoji) into mojibake. The hook payload is always UTF-8.
+    raw = sys.stdin.buffer.read().decode("utf-8", errors="replace").strip()
     if not raw:
         sys.exit(0)
 
