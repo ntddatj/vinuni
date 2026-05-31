@@ -14,11 +14,11 @@ Trong AI20K, chúng tôi cung cấp sẵn một template repository với cấu 
 Mở terminal và chạy các lệnh sau:
 
 ```bash
-# Thay YOUR_TEAM_NAME bằng tên đội của bạn (ví dụ: team-alpha)
-$ git clone https://github.com/vinuni-ai20k/agent-template.git team-YOUR_TEAM_NAME
+# Thay XXX bằng số thứ tự đội của bạn (ví dụ: C2-App-001, C2-App-042)
+$ git clone https://github.com/AI20K-Build-Cohort-2/starter-code-template.git C2-App-XXX
 
 # Di chuyển vào thư mục dự án
-$ cd team-YOUR_TEAM_NAME
+$ cd C2-App-XXX
 
 # Xóa git history của template và khởi tạo lại
 $ rm -rf .git
@@ -27,7 +27,7 @@ $ git add .
 $ git commit -m "feat: khởi tạo dự án từ template"
 
 # Đẩy lên repository của đội bạn
-$ git remote add origin https://github.com/vinuni-ai20k/team-YOUR_TEAM_NAME.git
+$ git remote add origin https://github.com/AI20K-Build-Cohort-2/C2-App-XXX.git
 $ git branch -M main
 $ git push -u origin main
 ```
@@ -497,7 +497,7 @@ authors = [
 ]
 
 [project.urls]
-repository = "https://github.com/vinuni-ai20k/team-alpha"  # URL repo của bạn
+repository = "https://github.com/AI20K-Build-Cohort-2/C2-App-XXX"  # URL repo của bạn
 ```
 
 **2. Cập nhật `README.md`:** Template có README placeholder. Thay thế bằng nội dung thực tế:

@@ -9,8 +9,8 @@ weight: 1
 ### Bước 1: Clone Template
 
 ```bash
-git clone https://github.com/a20-ai-thuc-chien/ai20k-agent-template.git A20-App-XXX
-cd A20-App-XXX
+git clone https://github.com/AI20K-Build-Cohort-2/starter-code-template.git C2-App-XXX
+cd C2-App-XXX
 ```
 
 ### Bước 2: Environment Setup
@@ -42,7 +42,7 @@ uvicorn src.main:app --reload
 
 ```bash
 # Đổi remote origin sang repo của team
-git remote set-url origin https://github.com/a20-ai-thuc-chien/A20-App-XXX.git
+git remote set-url origin https://github.com/AI20K-Build-Cohort-2/C2-App-XXX.git
 
 # Tạo branch develop
 git checkout -b develop
@@ -54,7 +54,7 @@ git push -u origin develop
 ## Folder Structure
 
 ```
-A20-App-XXX/
+C2-App-XXX/
 ├── src/                    ← Source code chính
 │   ├── agents/             ← LangGraph agents
 │   │   ├── graph.py        ← Graph definition
