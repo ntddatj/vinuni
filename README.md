@@ -2,7 +2,7 @@
 
 Template chính thức cho học viên **VinUni AI20K Build Phase** — cung cấp sẵn cấu trúc dự án, code mẫu, và hướng dẫn kỹ thuật chi tiết để xây dựng AI Agent đạt điểm cao (35+/50).
 
-> 📖 **Technical Guidebook:** [AI20K-Build-Cohort-2/ai20k-technical-guidebook](https://github.com/AI20K-Build-Cohort-2/ai20k-technical-guidebook)
+> 📖 **Technical Guidebook:** [phoenix.note.transformerlabs.ai/technical-book](https://phoenix.note.transformerlabs.ai/technical-book)
 
 ## 🎯 Template này dùng để làm gì?
 
@@ -72,7 +72,7 @@ uvicorn src.main:app --reload --port 8000
 
 ### Bước 5: Đọc hướng dẫn
 
-📖 Mở **[Technical Guidebook](https://github.com/AI20K-Build-Cohort-2/ai20k-technical-guidebook)** và làm theo từng chương.
+📖 Mở **[Technical Guidebook](https://phoenix.note.transformerlabs.ai/technical-book)** và làm theo từng chương.
 
 ## 📁 Cấu trúc dự án
 
@@ -128,7 +128,7 @@ uvicorn src.main:app --reload --port 8000
 | 9 | Demo Day — 10 deliverables, checklist, tips | 2 giờ |
 | 10 | Tài nguyên — Khóa học, docs, BMAD method | tham khảo |
 
-📖 **Đọc online:** [AI20K-Build-Cohort-2/ai20k-technical-guidebook](https://github.com/AI20K-Build-Cohort-2/ai20k-technical-guidebook)
+📖 **Đọc online:** [phoenix.note.transformerlabs.ai/technical-book](https://phoenix.note.transformerlabs.ai/technical-book)
 
 ## 📋 10 Deliverables cho Demo Day
 
@@ -181,31 +181,18 @@ bash scripts/_pyrun.sh scripts/log_manual.py --tool chatgpt --prompt "What you a
 
 ## 📖 Đọc Technical Guidebook
 
-**Online:** [AI20K-Build-Cohort-2/ai20k-technical-guidebook](https://github.com/AI20K-Build-Cohort-2/ai20k-technical-guidebook)
+**Online (khuyến nghị):** [phoenix.note.transformerlabs.ai/technical-book](https://phoenix.note.transformerlabs.ai/technical-book)
 
-**Local (Hugo):**
-```bash
-# Cài Hugo Extended (macOS)
-brew install hugo-extended
+Đăng nhập bằng GitHub (cùng account đã được BTC mời vào org `AI20K-Build-Cohort-2`)
+→ chọn tab **Technical Book** ở sidebar trái → đọc 10 chương + topic sections,
+có table of contents bên phải, hỗ trợ light/dark/cyberpunk theme.
 
-# Cài Hugo Extended (Windows)
-# winget install Hugo.Hugo.Extended
-
-# Clone guidebook repo
-git clone https://github.com/AI20K-Build-Cohort-2/ai20k-technical-guidebook.git
-cd ai20k-technical-guidebook
-
-# Chạy local server
-hugo server -D
-
-# Mở trình duyệt: http://localhost:1313
-```
-
-> 💡 Guidebook dùng theme [Hextra](https://imfing.github.io/hextra/) — Hugo Extended required.
+**Offline:** mọi chương đều ở thư mục `docs/guide/` trong template này — mở bằng
+bất kỳ markdown viewer/editor nào (VS Code, Obsidian, GitHub UI, …).
 
 ## 🔗 Liên kết
 
-- 📖 **Technical Guidebook:** [AI20K-Build-Cohort-2/ai20k-technical-guidebook](https://github.com/AI20K-Build-Cohort-2/ai20k-technical-guidebook)
+- 📖 **Technical Guidebook:** [phoenix.note.transformerlabs.ai/technical-book](https://phoenix.note.transformerlabs.ai/technical-book)
 - 🏫 **AI20K Program:** VinUni AI20K Build Phase
 - 👨‍🏫 **Mentor:** Đặng Hải Lộc
 
