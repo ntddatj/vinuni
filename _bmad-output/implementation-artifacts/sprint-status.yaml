@@ -1,0 +1,74 @@
+# generated: 2026-06-13T18:45:16+07:00
+# last_updated: 2026-06-13T18:52:00+07:00
+# project: C2-App-053
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: "{project-root}/_bmad-output/implementation-artifacts"
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-06-13T18:45:16+07:00
+last_updated: 2026-06-13T18:52:00+07:00
+project: C2-App-053
+project_key: NOKEY
+tracking_system: file-system
+story_location: "{project-root}/_bmad-output/implementation-artifacts"
+
+development_status:
+  epic-1: in-progress
+  1-1-khoi-tao-du-an-tu-starter-template-vite-react-ts: done
+  1-2-dang-ky-dang-nhap-phan-quyen-admin-khoi-tao-fr-1: in-progress
+  1-3-crud-du-an-nghien-cuu-giao-dien-sidebar-trai-fr-2-ux-dr3-ux-dr1-ux-dr2: backlog
+  1-4-man-hinh-onboarding-va-user-dashboard-fr-2-ux-dr7-ux-dr8: backlog
+  1-5-trang-quan-ly-du-an-tap-trung-fr-2-ux-dr8: backlog
+  1-6-luu-tru-cau-hinh-dong-giao-dien-cai-dat-admin-fr-11-fr-12-ux-dr10: backlog
+  epic-1-retrospective: optional
+  epic-2: backlog
+  2-1-tim-kiem-bai-bao-da-nguon-arxiv-semantic-scholar-goi-y-tu-khoa-rong-fr-3-ux-dr16-ux-dr17: backlog
+  2-2-nap-bai-bao-bat-dong-bo-hien-thi-tien-trinh-chi-tiet-qua-sse-fr-4-nfr5-nfr8-ux-dr14: backlog
+  2-5-giao-dien-thu-vien-xoa-mem-luu-tru-tai-lieu-soft-delete-archiving: backlog
+  2-3-upload-tai-lieu-ca-nhan-form-sieu-du-lieu-goi-y-cua-ai-fr-5-nfr4-ux-dr9-ux-dr15: backlog
+  2-4-kiem-soat-gioi-han-tai-lieu-trong-du-an-fr-11-ux-dr18: backlog
+  epic-2-retrospective: optional
+  epic-3: backlog
+  3-1-truc-quan-hoa-mang-luoi-bai-viet-bang-cytoscape-js-neo4j-fr-9-ux-dr6: backlog
+  3-2-che-do-tim-khoang-trong-canh-bao-truc-quan-tren-so-do-fr-9-ux-dr6: backlog
+  epic-3-retrospective: optional
+  epic-4: backlog
+  4-1-khung-giao-dien-chatbot-ai-co-gian-an-hien-ux-dr3-ux-dr4: backlog
+  4-2-chat-rag-thoi-gian-thuc-qua-langgraph-pgvector-fr-6-nfr1-nfr2: backlog
+  4-3-citation-guardrail-tooltip-trich-dan-goc-fr-8-fr-10-nfr7-ux-dr5: backlog
+  4-4-phan-tich-khoang-trong-qua-chat-goi-y-dinh-huong-theo-trang-thai-fr-7-fr-15-ux-dr12: backlog
+  epic-4-retrospective: optional
+  epic-5: backlog
+  5-1-giao-dien-soan-thao-quan-ly-ban-thao-fr-13-ux-dr12: backlog
+  5-2-tro-ly-ai-ho-tro-viet-xuat-ban-thao-tep-zip-fr-13-fr-14-ux-dr12: backlog
+  5-3-trang-chu-khach-vang-lai-guest-landing-page-khung-gia-lap-demo-ux-dr7-ux-dr13: backlog
+  epic-5-retrospective: optional

@@ -1,0 +1,68 @@
+# Google Stitch Prompt - AI Literature Review Assistant (C2-App-053)
+
+You are Google Stitch. Generate a high-fidelity HTML prototype with interactive CSS, micro-interactions, and a DESIGN.md specification (formatted according to the Google Labs design.md spec) for a consumer-facing Web Dashboard called "AI Literature Review Assistant" (Project ID: C2-App-053).
+
+The prototype must implement a clean, premium "Academic Paper" design system: warm paper light mode default with soft borders, and an optional soft dark mode (slate gray, no pitch black) toggled from the top right.
+
+---
+
+## 1. Bố cục Giao diện (Three-Column Layout)
+
+Giao diện dạng Dashboard 3 cột toàn màn hình:
+
+### Cột 1: Sidebar bên trái (Quản lý Dự án)
+* Chiều rộng cố định 240px. Tập trung duy nhất vào CRUD dự án và chuyển đổi dự án.
+* Nút hành động chính: "+ Tạo dự án mới" (nền màu accent-blue).
+* Có tiêu đề phân vùng "Danh sách các dự án" ở trên danh sách dự án. Dưới đó hiển thị danh sách các dự án của người dùng (ví dụ: "Nghiên cứu AI y tế", "Phân tích dữ liệu lớn", "Luận văn thạc sĩ"). Mỗi dòng dự án hiển thị tên dự án và các nút chỉnh sửa (pencil icon) và xóa (trash icon) xuất hiện khi hover. Nếu danh sách quá dài, khu vực này sẽ hiển thị thanh cuộn dọc (scrollbar) mượt mà.
+* Nút "Xem tất cả" ở phía dưới danh sách dự án.
+* Không chứa bất kỳ tab chức năng nào của dự án và không chứa liên kết hệ thống (cài đặt, đăng xuất).
+
+### Cột 2: Cột giữa (Không gian làm việc chính - Center Workspace)
+* Chiếm toàn bộ không gian còn lại ở giữa. 
+* Ở phía trên cùng có **Thanh Tab chức năng nằm ngang (Horizontal Project Tabs)** bao gồm:
+  - **Bản đồ Tri thức** (active mặc định, hiển thị đường gạch chân cobalt blue).
+  - **Thư viện Tài liệu**
+  - **Lịch sử Phân tích**
+* Bên dưới thanh tab hiển thị nội dung động tương ứng:
+  - **Tab Bản đồ Tri thức**: Sơ đồ mạng lưới Cytoscape.js. Các node tài liệu toàn văn (điểm tròn xanh lá) và node chỉ siêu dữ liệu arXiv (vòng tròn nét đứt cam vàng) kết nối với nhau bằng các đường trích dẫn `:CITES` (nét liền màu xanh) và `:AUTHORED` (nét đứt màu tím). Nhấp vào node sẽ hiển thị hộp thoại thông tin chi tiết node (Node Detail Card) trượt ra ở góc trên bên phải.
+  - **Tab Thư viện Tài liệu**: Vùng kéo thả tệp tin ở trên cùng ("Kéo thả file vào đây hoặc Chọn tệp"). Phía dưới là bảng danh sách bài viết hiển thị Title, Tác giả, Năm XB, Trạng thái (Thành công - màu xanh lá, Đang tải... - màu xanh dương xoay tròn, Chỉ siêu dữ liệu - màu cam) và biểu tượng Thùng rác để xóa.
+  - **Tab Lịch sử Phân tích**: Danh sách nhật ký các phiên làm việc và nút "Xuất Báo cáo" (tải xuống file ZIP chứa BibTeX và Markdown).
+
+### Cột 3: Cột phải (Khung Chatbot - Trợ lý nghiên cứu)
+* Khung chat với AI Agent hỗ trợ RAG, phân tích khoảng trống và kiểm định trích dẫn.
+* Tiêu đề panel: "Trợ lý nghiên cứu" cùng nút tắt (X) ở góc phải để thu gọn hoàn toàn panel.
+* Dải biên kéo giãn (resizable handle) bên trái rộng 4px cho phép kéo rộng khung chat từ 20% đến 40% màn hình, đúp click để đặt lại về 25%.
+* Ô nhập tin nhắn với dòng chữ gợi ý mờ (placeholder) là "Bạn cần tôi hỗ trợ gì..." cùng các thẻ gợi ý phân ngành nhấp chuột nhanh nằm cố định ở **phía trên** của panel (ngay dưới tiêu đề panel "Trợ lý nghiên cứu").
+* Luồng hội thoại (Chat History) hiển thị tin nhắn dạng Markdown chứa các badge trích dẫn `[1]` màu cobalt nằm ở **phía dưới** ô nhập liệu. Click/hover vào badge trích dẫn hiển thị `Citation Tooltip` chứa đoạn văn bản gốc và nút "Tải PDF gốc". Lịch sử tin nhắn tự động cuộn từ dưới lên.
+
+### Top-Right Header Utilities Bar (Thanh tiện ích góc trên bên phải)
+* Nằm ở góc trên cùng bên phải, ngang hàng với thanh tab ngang của cột giữa.
+* Chứa cụm phím chức năng hệ thống không phụ thuộc dự án: "Trợ giúp" (?), "Cài đặt Hệ thống" (bánh răng), "Đăng xuất" (thoát), bộ chọn ngôn ngữ "VI | EN", và nút chuyển đổi giao diện sáng/tối (mặt trăng/mặt trời).
+
+---
+
+## 2. Hệ thống Token Thiết kế (DESIGN.md)
+
+* **Name**: AcademicPaper
+* **Colors (Light Mode)**:
+  * `surface-base`: `#FAF9F6` (Warm paper canvas)
+  * `surface-raised`: `#FFFFFF` (Pure white panels/sidebar)
+  * `ink-primary`: `#1E2022` (Deep charcoal text)
+  * `ink-secondary`: `#64748B` (Slate gray secondary text)
+  * `accent-blue`: `#2563EB` (Cobalt blue)
+  * `accent-violet`: `#8B5CF6` (Amethyst violet)
+  * `state-success`: `#10B981` (Emerald green)
+  * `state-warning`: `#F59E0B` (Amber yellow)
+  * `state-danger`: `#EF4444` (Crimson red)
+  * `border-hairline`: `#E2E8F0` (Soft gray line)
+* **Colors (Soft Dark Mode)**:
+  * `surface-base`: `#1F2023` (Slate gray canvas)
+  * `surface-raised`: `#282A2D` (Slightly darker gray panels)
+  * `ink-primary`: `#E4E6EB` (Warm off-white text)
+  * `ink-secondary`: `#94A3B8` (Light slate gray secondary text)
+  * `accent-blue`: `#60A5FA` (Light cobalt blue)
+  * `border-hairline`: `#383A40` (Dark gray line)
+* **Rounded**:
+  * `sm`: `4px`
+  * `md`: `6px`
+  * `lg`: `8px`
