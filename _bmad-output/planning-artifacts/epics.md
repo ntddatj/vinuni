@@ -11,7 +11,7 @@ inputDocuments:
 
 ## Overview
 
-This document provides the complete epic and story breakdown for C2-App-053, decomposing the requirements from the PRD, UX Design if it exists, and Architecture requirements into implementable stories.
+Tài liệu này cung cấp bảng phân rã chi tiết các Epic và Story cho C2-App-053, chuyển hóa các yêu cầu từ PRD, thiết kế UX (nếu có) và yêu cầu kiến trúc thành các câu chuyện người dùng (stories) có thể triển khai.
 
 ## Requirements Inventory
 
@@ -35,7 +35,7 @@ FR15: Hỗ trợ định hướng người dùng theo trạng thái dự án (Ch
 
 ### NonFunctional Requirements
 
-NFR1: Concurrency (Hỗ trợ 50 người dùng hoạt động đồng thời trên cấu hình VM tối thiểu 32GB RAM/6 vcores).
+NFR1: Concurrency (Hỗ trợ 10 người dùng hoạt động đồng thời trên cấu hình VM tối thiểu 32GB RAM/6 vcores).
 NFR2: Storage Limit (Giới hạn dung lượng tải lên tối đa 20MB cho mỗi tệp tài liệu cá nhân).
 NFR3: Database Performance (pgvector HNSW index trên column embedding, phản hồi RAG query < 500ms khi DB dưới 100,000 dòng vector).
 NFR4: Background Processing (FastAPI BackgroundTasks cho nạp file ngầm, queue worker arq giới hạn concurrency_limit=2, cấu hình OMP_NUM_THREADS=1, OPENBLAS_NUM_THREADS=1 để chống thrashing).
@@ -109,134 +109,107 @@ Người dùng có thể viết literature review có hỗ trợ gợi ý của 
 
 ---
 
+
 ## Epic 1: Quản lý Không gian & Nền tảng Xác thực (Workspace & Identity Foundation)
 
 Epic này tập trung vào thiết lập hạ tầng cốt lõi về định danh người dùng và phân quyền, xây dựng giao diện Workspace 3 cột và cơ chế lưu trữ dự án độc lập.
 
-### Story 1.1: Đăng ký tài khoản & Phân quyền Admin khởi tạo (User Registration & Initial Admin Assignment)
+### Story 1.1: [Backend] User Schema & Register API
 
-As a khách vãng lai,
-I want đăng ký tài khoản mới bằng Email và Mật khẩu,
-So that tôi có thể đăng nhập vào hệ thống và tự động nhận quyền Admin nếu là tài khoản đăng ký đầu tiên.
-
-**Acceptance Criteria:**
-
-**Given** người dùng đang ở giao diện đăng ký tài khoản và nhập email chưa tồn tại cùng mật khẩu hợp lệ (tối thiểu 8 ký tự).
-**When** nhấn nút "Đăng ký".
-**Then** hệ thống mã hóa mật khẩu bằng `bcrypt` và lưu trữ tài khoản vào bảng `users` trong PostgreSQL.
-**And** chuyển hướng người dùng vào giao diện Dashboard.
-
-**Given** bảng `users` trong cơ sở dữ liệu hoàn toàn trống (chưa có tài khoản nào).
-**When** người dùng đầu tiên đăng ký tài khoản thành công.
-**Then** hệ thống tự động gán vai trò của họ là `role = 'admin'`.
-**And** các tài khoản đăng ký sau đó nhận vai trò mặc định là `role = 'user'`.
-
-**Given** email `researcher@example.com` đã tồn tại trong database.
-**When** người dùng cố gắng đăng ký tài khoản mới với email này.
-**Then** Backend trả về lỗi `HTTP 400 Bad Request`.
-**And** Frontend hiển thị thông báo cảnh báo email đã được sử dụng.
-
-### Story 1.2: Đăng nhập & Xác thực bằng HttpOnly Cookie (User Login & JWT HttpOnly Cookie Session)
-
-As a người dùng đã đăng ký,
-I want đăng nhập bằng Email và Mật khẩu chính xác,
-So that hệ thống cấp mã JWT lưu trong HttpOnly Cookie để duy trì phiên làm việc an toàn.
+Với vai trò là khách vãng lai,
+Tôi muốn API đăng ký tài khoản,
+Để thông tin của tôi được lưu vào cơ sở dữ liệu và tôi nhận quyền Admin nếu là người đầu tiên.
 
 **Acceptance Criteria:**
 
-**Given** người dùng nhập đúng Email và Mật khẩu của tài khoản đã đăng ký.
-**When** nhấn nút "Đăng nhập".
-**Then** Backend tạo mã JWT (payload chứa user_id và role) và trả về qua set-cookie header.
-**And** cookie được cấu hình với thuộc tính `HttpOnly`, `SameSite=Lax`, tên `access_token` có thời hạn 24 giờ.
-**And** Frontend chuyển hướng người dùng vào giao diện Dashboard và hiển thị gear cài đặt hệ thống ở Header nếu người dùng có quyền Admin.
+**Given** payload đăng ký với Email/Password hợp lệ.
+**When** gọi API `POST /api/auth/register`.
+**Then** tạo bản ghi trong bảng `users` với mật khẩu đã mã hóa (bcrypt).
+**And** gán `role='admin'` nếu là tài khoản đầu tiên trong DB, ngược lại gán `role='user'`. Trả về lỗi 400 nếu email tồn tại.
 
-**Given** người dùng nhập sai mật khẩu hoặc email chưa đăng ký.
-**When** nhấn nút "Đăng nhập".
-**Then** Backend trả về mã lỗi `HTTP 401 Unauthorized`.
-**And** Frontend hiển thị Banner thông báo lỗi đăng nhập màu đỏ trên giao diện.
+> 🔍 **Cách nghiệm thu trực quan:**
+> Swagger UI. Gọi API `/api/auth/register`, nhập email/pass. Mở Database xem bảng `users` thấy tài khoản vừa tạo có role `admin`.
 
-**Given** người dùng đang ở giao diện Dashboard.
-**When** click nút "Đăng xuất" ở Header.
-**Then** Backend xóa cookie `access_token` trên trình duyệt.
-**And** Frontend điều hướng người dùng về Landing Page của khách vãng lai.
+### Story 1.2: [Backend] Login API & JWT Session
 
-### Story 1.3: Quy trình Onboarding & Khởi tạo dự án đầu tiên (Onboarding & First Project Gating)
-
-As a người dùng mới chưa có dự án nào,
-I want hệ thống hiển thị màn hình Onboarding khóa (gating) yêu cầu tạo dự án đầu tiên kèm xem hướng dẫn,
-So that tôi được định hướng bắt đầu dự án mà không bị bối rối bởi giao diện trống.
+Với vai trò là người dùng,
+Tôi muốn API đăng nhập trả về HttpOnly Cookie,
+Để tôi có thể truy cập các đường dẫn (route) bảo mật an toàn.
 
 **Acceptance Criteria:**
 
-**Given** người dùng đăng nhập thành công và hệ thống kiểm tra số lượng dự án của người dùng bằng 0.
-**When** người dùng truy cập trang chủ Workspace.
-**Then** hệ thống hiển thị màn hình Onboarding bao phủ toàn bộ vùng làm việc.
-**And** hiển thị biểu mẫu tạo dự án nhanh bên trái và checklist hướng dẫn sử dụng cùng slide giới thiệu bên phải.
+**Given** email và mật khẩu đúng.
+**When** gọi API `POST /api/auth/login`.
+**Then** Backend cấp 1 token JWT chứa `user_id`.
+**And** trả về client thông qua header `Set-Cookie` (`HttpOnly`, `SameSite=Lax`).
+**And** chặn (401) các request bảo mật nếu không có cookie.
 
-**Given** người dùng điền đầy đủ Tên dự án và Mô tả ngắn hợp lệ.
-**When** click nút "Tạo dự án" (đã đổi sang màu xanh Cobalt).
-**Then** hệ thống tạo dự án mới trong PostgreSQL liên kết với `user_id`.
-**And** chuyển hướng người dùng vào giao diện làm việc 3 cột đầy đủ của dự án vừa tạo.
+> 🔍 **Cách nghiệm thu trực quan:**
+> Swagger UI. Gọi API `/login`. Mở DevTools (F12) -> Application -> Cookies, thấy cookie `access_token` được gán thành công.
 
-### Story 1.4: CRUD Dự án nghiên cứu & Left Sidebar điều hướng (Workspace Management & Sidebar CRUD)
+### Story 1.3: [Frontend] Auth UI & First-Admin Logic
 
-As a người dùng đang hoạt động,
-I want tạo mới, chỉnh sửa tên và xóa dự án trực tiếp trên Sidebar trái hoặc trang quản lý tập trung,
-So that tôi có thể dễ dàng tổ chức các không gian nghiên cứu riêng biệt.
-
-**Acceptance Criteria:**
-
-**Given** người dùng có danh sách nhiều dự án đã tạo.
-**When** hiển thị Sidebar bên trái.
-**Then** hiển thị tối đa 10 dự án được sử dụng gần nhất.
-**And** hiển thị thanh cuộn dọc (scrollbar) mượt mà khi danh sách Sidebar vượt màn hình.
-**And** hiển thị nút "Xem tất cả" dưới danh sách dự án.
-
-**Given** người dùng di chuột (hover) qua một dòng dự án trên Sidebar.
-**When** click vào biểu tượng Sửa (edit) hoặc Xóa (delete).
-**Then** hành động sửa cho phép đổi tên dự án inline.
-**And** hành động xóa mở Modal xác nhận và cập nhật trạng thái xóa mềm (Soft-Delete) sang bảng `sync_outbox`.
-
-**Given** người dùng click nút "Xem tất cả" dưới Sidebar.
-**When** chuyển sang Trang Quản lý toàn bộ dự án tập trung.
-**Then** hiển thị danh sách dự án đầy đủ dạng bảng, hỗ trợ tìm kiếm theo tên/mô tả và phân trang số ở góc dưới bên phải.
-
-### Story 1.5: Giao diện 3 Cột & Bộ chuyển đổi ngôn ngữ/chủ đề (Three-Column Layout & Global Utilities)
-
-As a người dùng hệ thống,
-I want làm việc trên bố cục 3 cột đồng bộ, có thể ẩn chatbot, đổi ngôn ngữ VI/EN hoặc Light/Dark theme,
-So that tôi có trải nghiệm làm việc tối ưu và cá nhân hóa.
+Với vai trò là khách vãng lai,
+Tôi muốn giao diện Đăng ký / Đăng nhập,
+Để tôi có thể điền thông tin đăng nhập vào hệ thống.
 
 **Acceptance Criteria:**
 
-**Given** Khung Chatbot AI bên phải đang hiển thị ở chiều rộng mặc định 25%.
-**When** kéo dải biên 4px (hitbox 10px) hoặc click nút Toggle ẩn chat ở Header.
-**Then** chiều rộng khung chat thay đổi tương ứng từ 20-40%, hoặc thu gọn về 0.
-**And** double-click vào đường biên resets chiều rộng về 25% mặc định.
+**Given** trang Đăng nhập/Đăng ký.
+**When** nhập sai mật khẩu, **Then** hiện Toast báo lỗi 401.
+**When** nhập đúng, **Then** điều hướng vào Dashboard. Nếu là Admin, hiện biểu tượng Bánh răng (Settings) trên Header.
 
-**Given** người dùng click nút chuyển đổi ngôn ngữ `VI | EN` ở Header.
-**When** chọn chuyển đổi.
-**Then** toàn bộ nhãn tĩnh trên UI (tab ngang, nút sidebar, menu cài đặt) được dịch tức thời mà không cần reload trang.
+> 🔍 **Cách nghiệm thu trực quan:**
+> Mở Web, điền form đăng nhập. Thấy chuyển trang vào Dashboard và có nút Bánh răng cài đặt góc phải trên cùng.
 
-**Given** người dùng click biểu tượng mặt trăng/mặt trời trên Header.
-**When** thay đổi chủ đề.
-**Then** hệ thống chuyển đổi class CSS từ Light Mode sang Soft Dark Mode (màu xám phiến đá dịu mắt) và ngược lại.
+### Story 1.4: [Backend] Project CRUD APIs
 
-**Given** bài báo chứa biểu đồ/hình ảnh lưu trong thư mục `/app/data/images/`.
-**When** Frontend truy cập URL `GET /api/projects/{project_id}/images/{image_name}`.
-**Then** Backend kiểm chứng access_token cookie và quyền sở hữu dự án (`project_id`) trước khi trả về FileResponse.
+Với vai trò là người dùng,
+Tôi muốn các API tạo, đọc, sửa, xóa dự án,
+Để tôi có nơi lưu trữ tài liệu tách biệt.
 
----
+**Acceptance Criteria:**
 
-### Chiến lược Kiểm thử cho Epic 1 (Epic 1 Testing Strategy)
+**Given** request có chứa JWT cookie hợp lệ.
+**When** gọi `POST /api/projects` với tên dự án.
+**Then** lưu dự án vào DB kèm `user_id`.
+**When** gọi `DELETE /api/projects/{id}`.
+**Then** cập nhật `is_deleted = true` (soft delete) và ghi sự kiện vào `sync_outbox`.
 
-Do Epic 1 hoàn toàn bao gồm các thành phần nội bộ (PostgreSQL, JWT Cookie, REST API), chúng ta sẽ chuẩn bị các kịch bản test như sau:
-1. **Mock Database Session:** Sử dụng `pytest` fixtures để khởi tạo và rollback database PostgreSQL sau mỗi test case, đảm bảo độc lập dữ liệu.
-2. **FastAPI Integration Tests:** Viết các test case tích hợp gọi endpoint `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/projects` sử dụng `httpx.AsyncClient` để xác thực:
-   - Cơ chế cấp cookie HttpOnly `access_token` sau khi đăng nhập.
-   - Cơ chế gán quyền admin cho user đầu tiên.
-   - Việc phân tách dữ liệu dự án (user A không thể truy cập dự án của user B).
-3. **Mocking Client Cookies:** Trong `pytest`, sử dụng `cookies` dict để gửi JWT cookie hợp lệ và không hợp lệ để kiểm chứng các endpoint yêu cầu xác thực hoạt động đúng.
+> 🔍 **Cách nghiệm thu trực quan:**
+> Swagger UI. Gọi POST tạo dự án, kiểm tra DB thấy dự án mới được tạo có liên kết đúng với `user_id`.
+
+### Story 1.5: [Frontend] Project Sidebar & Creation Modal
+
+Với vai trò là người dùng,
+Tôi muốn thanh Sidebar bên trái hiển thị danh sách dự án,
+Để tôi dễ dàng chọn và tạo dự án mới.
+
+**Acceptance Criteria:**
+
+**Given** đang ở màn hình Dashboard.
+**When** nhìn sang Sidebar trái.
+**Then** thấy danh sách tối đa 10 dự án gần nhất.
+**When** bấm nút "Tạo dự án mới", **Then** hiển thị Modal nhập tên dự án. Bấm "Lưu" gọi API 1.4 và Sidebar cập nhật lập tức.
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Bấm "Tạo dự án mới", nhập tên, bấm Lưu. Ngay lập tức Sidebar bên trái xuất hiện dự án mới mà không cần F5 trang.
+
+### Story 1.6: [Frontend] Centralized Project Management Table
+
+Với vai trò là người dùng,
+Tôi muốn trang quản lý toàn bộ dự án dạng bảng,
+Để tôi có thể tìm kiếm và quản lý số lượng lớn dự án.
+
+**Acceptance Criteria:**
+
+**Given** chọn mục "Tất cả dự án" ở Sidebar.
+**When** màn hình hiển thị.
+**Then** load bảng danh sách tất cả dự án có phân trang.
+**And** có ô tìm kiếm theo tên. Có nút Xóa dự án (hiện popup xác nhận).
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Web UI. Thấy bảng danh sách dự án. Bấm icon Thùng rác, hiện popup "Bạn có chắc chắn?". Bấm OK, dòng đó biến mất.
 
 ---
 
@@ -244,117 +217,171 @@ Do Epic 1 hoàn toàn bao gồm các thành phần nội bộ (PostgreSQL, JWT C
 
 Epic này phát triển công cụ tìm kiếm bài báo khoa học và quản lý quy trình nạp tài liệu tự động và thủ công dưới dạng bất đồng bộ.
 
-### Story 2.1: Quản lý API Keys cá nhân & Mã hóa bảo mật (Personal API Keys Management)
+### Story 2.1: [Backend] Manual Upload & LLM Metadata Extraction
 
-As a người dùng,
-I want thêm, sửa, xóa và kiểm tra kết nối API Key cá nhân của Gemini/Semantic Scholar,
-So that tôi có thể nâng hạn mức gọi API và lưu trữ chúng an toàn bằng mã hóa AES/Fernet trong database.
-
-**Acceptance Criteria:**
-
-**Given** người dùng ở tab API Keys trong Cài đặt cá nhân.
-**When** người dùng nhập Gemini API Key và bấm "Test Connection".
-**Then** hệ thống gọi thử API Gemini để kiểm tra tính hợp lệ, hiển thị spinner `Testing...` và badge 🟢 `Connected` hoặc 🔴 `Failed` tùy thuộc kết quả.
-**When** người dùng bấm "Lưu".
-**Then** Backend mã hóa API Key bằng khóa đối xứng `AES/Fernet` trước khi lưu vào PostgreSQL.
-**And** hiển thị key dạng mask trên UI, chỉ lộ 4 ký tự cuối (ví dụ: `••••••••••••••••3a5F`).
-
-### Story 2.2: Tìm kiếm bài báo học thuật song song với xử lý lỗi Degraded Union (Academic Search with API Failover)
-
-As a người dùng,
-I want nhập từ khóa tìm kiếm và hệ thống gọi song song arXiv + Semantic Scholar (timeout 10s),
-So that tôi nhận được danh sách bài báo không trùng lặp và vẫn xem được kết quả từ nguồn còn lại kèm Toast cảnh báo nếu một bên gặp sự cố.
+Với vai trò là người dùng,
+Tôi muốn upload file PDF tự có của tôi,
+Để AI tự động trích xuất tiêu đề, tác giả.
 
 **Acceptance Criteria:**
 
-**Given** người dùng ở tab Thư viện tài liệu của dự án.
-**When** người dùng nhập từ khóa "RAG optimization" và bấm Tìm kiếm.
-**Then** Backend gửi yêu cầu tìm kiếm song song đến arXiv API và Semantic Scholar API.
-**And** khử trùng lặp các bài báo dựa trên DOI hoặc đối khớp tiêu đề.
-**And** hiển thị danh sách kết quả chứa siêu dữ liệu (tiêu đề, tác giả, năm, tóm tắt, trích dẫn, link PDF).
-**Given** API Semantic Scholar bị lỗi hoặc quá hạn 10s nhưng arXiv thành công.
-**When** thực hiện tìm kiếm.
-**Then** Backend vẫn trả về kết quả thành công từ arXiv kèm cờ `warnings: ["semantic_scholar_timeout"]`.
-**And** Frontend hiển thị Toast cảnh báo màu vàng ở góc phải: *"API Semantic Scholar gặp sự cố, hiển thị kết quả từ nguồn còn lại."* mà không bị sập hay trắng màn hình.
+**Given** file PDF tải lên qua `POST /api/documents/upload`.
+**When** Backend nhận file.
+**Then** lưu file vào ổ cứng/s3. Đọc text 2 trang đầu.
+**And** gọi LLM prompt trích xuất JSON `{title, authors, abstract, year}`.
+**And** trả về client JSON này.
 
-### Story 2.3: Gợi ý phân ngành MECE cho chủ đề quá rộng (Broad Query handling with Sub-field buttons)
+> 🔍 **Cách nghiệm thu trực quan:**
+> Swagger UI. Upload file PDF bất kỳ. Thấy API trả về JSON chứa đúng tên bài báo và tác giả lấy từ trang bìa PDF.
 
-As a người dùng,
-I want hệ thống tự gợi ý các thẻ phân ngành nhỏ khi truy vấn quá rộng (vượt `BROAD_QUERY_THRESHOLD`),
-So that tôi có thể dễ dàng bấm nút để thu hẹp phạm vi tìm kiếm.
+### Story 2.2: [Frontend] AI Suggested Metadata Form
 
-**Acceptance Criteria:**
-
-**Given** Admin cấu hình `BROAD_QUERY_THRESHOLD = 50`.
-**When** người dùng tìm kiếm từ khóa rộng nhận về 65 kết quả từ API.
-**Then** Backend gọi LLM phân tích từ khóa chính để sinh ra danh sách phân ngành nhỏ mang tính MECE (bao phủ toàn bộ phạm vi).
-**And** trả về danh sách gợi ý dưới dạng các thẻ nút bấm có thể click dưới thanh tìm kiếm (ví dụ: `[RAG Retrieval Accuracy]`, `[Vector Index Optimization]`).
-**When** người dùng click vào một nút gợi ý.
-**Then** hệ thống tự động điền từ khóa đó vào ô tìm kiếm và kích hoạt một lượt truy vấn mới.
-
-### Story 2.4: Upload tệp PDF/DOCX thủ công & Trích xuất Metadata thông minh (Manual Upload & AI Suggested Metadata)
-
-As a người dùng,
-I want tải lên tệp PDF/DOCX và AI tự trích xuất siêu dữ liệu điền vào biểu mẫu chỉnh sửa,
-So that tôi có thể xác nhận lại siêu dữ liệu tài liệu trước khi nạp chính thức vào dự án.
+Với vai trò là người dùng,
+Tôi muốn xác nhận thông tin AI trích xuất trước khi lưu,
+Để tôi có thể sửa nếu AI nhận diện sai.
 
 **Acceptance Criteria:**
 
-**Given** người dùng kéo thả tệp PDF/DOCX cá nhân vào vùng tải lên.
-**When** tệp được tải lên Backend (giới hạn dung lượng < 20MB).
-**Then** Backend chạy parse văn bản thô và gửi lên LLM để trích xuất Metadata.
-**And** hiển thị form Metadata trên UI với các trường (Tiêu đề, Tác giả, Năm, Tóm tắt) được điền sẵn kèm nhãn badge `"AI Suggested"`.
-**When** người dùng chỉnh sửa các trường này và click "Xác nhận".
-**Then** hệ thống chính thức lưu Metadata đã xác thực vào PostgreSQL và khởi chạy quy trình nhúng vector.
+**Given** sau khi upload file PDF thành công ở Story 2.1.
+**When** Frontend nhận JSON metadata.
+**Then** bật Modal Form chứa các trường dữ liệu. Gắn badge "AI Suggested".
+**When** người dùng sửa form và bấm "Xác nhận".
+**Then** gọi API đưa file vào luồng Ingestion Task (Story 2.3).
 
-### Story 2.5: Ingestion bất đồng bộ qua Worker arq & Stream tiến trình SSE (Async Ingestion & SSE Progress Stream)
+> 🔍 **Cách nghiệm thu trực quan:**
+> Bấm nút Upload, chọn file. Chờ 2s, bật lên 1 cửa sổ có điền sẵn Tên bài báo. Sửa lại tên theo ý muốn, bấm OK.
 
-As a người dùng,
-I want hệ thống chạy nạp tài liệu ngầm (tải PDF, OCR nếu scan, chunking parent-child, lưu vector pgvector) và cập nhật tiến trình liên tục qua SSE,
-So that tôi theo dõi được tiến trình xử lý chi tiết và tiếp tục làm việc khác mà không bị chặn UI.
+### Story 2.3: [Backend] Background Ingestion Task Foundation
 
-**Acceptance Criteria:**
-
-**Given** người dùng xác nhận nạp tài liệu vào dự án.
-**When** Backend tiếp nhận yêu cầu.
-**Then** Backend tạo một Background Task bất đồng bộ (arq worker) để xử lý nạp tài liệu:
-  - Tải tệp PDF về local (nếu là link open access).
-  - Sử dụng PyMuPDF / Docling để phân tách cấu trúc PDF/DOCX.
-  - Sử dụng mô hình `text-embedding-004` nhúng Child Chunks (cỡ 500 ký tự, overlap 100) và lưu vào pgvector.
-**And** Backend thiết lập kết nối SSE gửi các cập nhật trạng thái chi tiết theo thời gian thực về Frontend: `"Đang tải..."` -> `"Đang quét cấu trúc & OCR..."` -> `"Đang nhúng vector..."` -> `"Đã nạp thành công"`.
-**And** Frontend cập nhật thanh tiến trình tương ứng của tài liệu trên danh sách Thư viện.
-
-### Story 2.6: Kiểm soát Giới hạn số lượng tài liệu Admin đặt ra (Workspace Document limit)
-
-As a người dùng,
-I want hệ thống chặn nạp tài liệu và hiển thị cảnh báo đỏ khi số lượng tài liệu đạt giới hạn `MAX_PAPERS_PER_PROJECT` của Admin,
-So that tài nguyên lưu trữ của hệ thống được kiểm soát và tránh vượt quá khả năng xử lý của dự án.
+Với vai trò là hệ thống,
+Tôi muốn một worker queue chạy ngầm để xử lý tài liệu,
+Để API không bị block khi xử lý tệp tin nặng.
 
 **Acceptance Criteria:**
 
-**Given** Admin cấu hình giới hạn cứng dự án là `MAX_PAPERS_PER_PROJECT = 3`.
-**When** dự án của người dùng đã có 3 tài liệu nạp thành công.
-**Then** Frontend vô hiệu hóa (disable) nút nạp tài liệu mới và hiển thị banner cảnh báo màu đỏ: *"Dự án đã đạt giới hạn tài liệu tối đa của hệ thống (3 tài liệu)..."*
-**When** người dùng cố tình gọi API upload tệp bằng cách gửi request thủ công.
-**Then** Backend kiểm tra số lượng qua khóa phân tán Redis hoặc Optimistic Lock trên Postgres và từ chối xử lý, trả về mã lỗi `HTTP 403 Forbidden`.
+**Given** FastAPI nhận lệnh nạp tài liệu.
+**When** đẩy job vào queue `arq`.
+**Then** API trả về ngay `{"task_id": "123"}`.
+**And** Worker ngầm bắt đầu tải metadata (nếu từ tìm kiếm) hoặc sử dụng metadata đã xác nhận, thực hiện chia chunk parent-child và lưu vào `pgvector`.
 
----
+> 🔍 **Cách nghiệm thu trực quan:**
+> Terminal. Xem log của Worker thấy in ra "Processing task 123... Done" trong khi API trả về kết quả lập tức.
 
-### Chiến lược Kiểm thử & Giả lập cho Epic 2 (Epic 2 Testing & Mocking Strategy)
+### Story 2.4: [Backend] SSE Progress Streaming
 
-Để kiểm thử tự động cho Epic 2 mà không phụ thuộc vào kết nối mạng, chúng ta sẽ chuẩn bị các kịch bản test như sau:
-1. **Mocking External Search HTTP APIs:**
-   - Sử dụng thư viện `respx` hoặc `pytest-mock` để intercept các request HTTP gửi đến các endpoint của arXiv và Semantic Scholar.
-   - Thiết lập các fixture trả về kết quả JSON học thuật giả định (mock search response) để test tính năng khử trùng lặp và hiển thị dữ liệu.
-   - **Test Failover:** Thiết lập mock Semantic Scholar ném ra lỗi Timeout (HTTP 504) hoặc Rate Limit (HTTP 429), và verify Backend vẫn trả về kết quả của arXiv kèm mảng `warnings: ["semantic_scholar_timeout"]`.
-2. **Mocking Gemini API (Metadata Extraction & Broad Query):**
-   - Mock lời gọi đến SDK của Gemini để trích xuất Metadata và sinh MECE sub-fields. 
-   - Fixture sẽ nhận dữ liệu text thô và trả về trực tiếp một JSON mock chứa: `{ "title": "Mock Title", "authors": ["Author A"], "abstract": "...", "year": 2026 }` hoặc danh sách `{ "suggested_sub_fields": ["Subfield A", "Subfield B"] }`.
-3. **Integration Test cho Arq Worker & pgvector:**
-   - Khởi chạy một test Redis server (`redislite` hoặc Redis Docker test container) để điều phối hàng đợi arq.
-   - Viết test đẩy task nạp tài liệu với file PDF giả lập (mock file stream).
-   - Verify worker arq chạy bình thường (concurrency = 2), thực hiện cắt chunk parent-child đúng thuật toán (Parent: 1000-3000 ký tự theo heading, Child: 500 ký tự, 100 overlap).
-   - Kiểm tra DB PostgreSQL sau khi chạy verify các bản ghi chunk đã có vector và truy vấn tìm kiếm vector cosine distance trả về đúng dữ liệu.
+Với vai trò là người dùng,
+Tôi muốn API stream trạng thái tiến trình nạp tài liệu,
+Để giao diện (Frontend) có thể vẽ thanh tiến trình.
+
+**Acceptance Criteria:**
+
+**Given** Worker đang chạy.
+**When** Worker cập nhật trạng thái (ví dụ: 10%, 50%, "Đang chia chunk").
+**Then** cập nhật trạng thái vào Redis.
+**When** Frontend kết nối `GET /api/sse/tasks/{id}`.
+**Then** Backend yield các event SSE tuân theo schema cố định sau:
+* Event tiến trình:
+```json
+{
+  "event": "progress",
+  "task_id": "123",
+  "status": "chunking",
+  "percent": 50,
+  "message": "Đang chia chunk"
+}
+```
+* Event hoàn thành:
+```json
+{
+  "event": "completed",
+  "task_id": "123",
+  "document_id": "doc_456"
+}
+```
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Dùng lệnh Terminal: `curl -N http://localhost:8000/api/sse/tasks/123`. Thấy console liên tục in ra các event SSE đúng định dạng JSON như trên cho đến khi hoàn thành.
+
+### Story 2.5: [Frontend] Ingestion Progress UI
+
+Với vai trò là người dùng,
+Tôi muốn thấy thanh tiến trình khi nạp tài liệu,
+Để tôi biết hệ thống đang làm gì.
+
+**Acceptance Criteria:**
+
+**Given** người dùng bấm nút "Xác nhận" (từ Form Metadata) hoặc "Thêm vào dự án" (từ Search).
+**When** nhận sự kiện SSE từ API 2.4.
+**Then** hiển thị Toast hoặc thanh Progress Bar chạy từ 0 đến 100% dựa trên trường `percent` và hiển thị nội dung `message`.
+**When** nhận event `completed`, ẩn progress bar và hiển thị thông báo thành công.
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Web UI. Xác nhận form upload, thấy một thanh tải chạy ở góc phải màn hình hiển thị phần trăm và trạng thái, chạy xong 100% thì báo thành công và cập nhật thư viện.
+
+### Story 2.6: [Backend] External Search Clients (arXiv & Semantic Scholar)
+
+Với vai trò là hệ thống,
+Tôi muốn tích hợp API tìm kiếm của arXiv và Semantic Scholar,
+Để có thể lấy dữ liệu thô từ các nguồn học thuật.
+
+**Acceptance Criteria:**
+
+**Given** từ khóa tìm kiếm.
+**When** gọi function adapter.
+**Then** HTTP Client gửi request đến arXiv và Semantic Scholar với timeout 10s.
+**And** bọc bằng Tenacity (Retry) khi gặp lỗi mạng.
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Chạy script test nhỏ. Nhập từ khóa "LLM", thấy console in ra log trả về danh sách từ arXiv và Semantic Scholar.
+
+### Story 2.7: [Backend] Parallel Search & Deduplication API
+
+Với vai trò là người dùng,
+Tôi muốn API tìm kiếm tổng hợp và loại bỏ bài báo trùng lặp,
+Để kết quả trả về sạch sẽ và nhanh chóng.
+
+**Acceptance Criteria:**
+
+**Given** từ khóa tìm kiếm.
+**When** gọi `GET /api/search?q=keyword`.
+**Then** Backend gọi đồng thời (asyncio.gather) cả 2 hàm ở Story 2.6.
+**And** khử trùng lặp kết quả dựa trên DOI.
+**And** trả về JSON mảng kết quả.
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Swagger UI. Gọi API `/search`, thấy thời gian phản hồi nhanh (< 2s) và trong list kết quả không có 2 bài báo nào trùng DOI.
+
+### Story 2.8: [Frontend] Search UI & Broad Query Detection
+
+Với vai trò là người dùng,
+Tôi muốn ô tìm kiếm và giao diện hiển thị kết quả,
+Để tôi có thể chọn bài báo cần thêm vào dự án.
+
+**Acceptance Criteria:**
+
+**Given** ô tìm kiếm ở tab Thư viện.
+**When** gõ từ khóa "Machine Learning" (truy vấn rất rộng).
+**Then** Backend trả về cờ `is_broad_query = true` và danh sách gợi ý phân ngành MECE (ví dụ: "NLP", "Computer Vision").
+**And** Frontend hiển thị các nút gợi ý này để người dùng bấm vào thu hẹp tìm kiếm. Hiển thị danh sách thẻ bài báo.
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Web UI. Gõ "AI", bấm tìm. Thấy kết quả hiện ra kèm theo 3-4 nút bấm gợi ý phân ngành nhỏ hơn ở trên cùng.
+
+### Story 2.9: [Backend] Document Limit Enforcement
+
+Với vai trò là Quản trị viên (Admin),
+Tôi muốn giới hạn số tài liệu trong 1 dự án theo biến môi trường/cấu hình,
+Để máy chủ (server) không bị quá tải.
+
+**Acceptance Criteria:**
+
+**Given** cấu hình `MAX_PAPERS=15`.
+**When** dự án đã có 15 tài liệu.
+**Then** mọi request Ingestion (Search thêm hoặc Upload thêm) vào dự án này đều trả về HTTP 403.
+**And** Frontend vô hiệu hóa nút "Thêm" và hiện cảnh báo giới hạn.
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Chỉnh config `MAX_PAPERS=1`. Thêm 1 bài báo. Cố gắng thêm bài báo thứ 2, thấy hiển thị thông báo lỗi màu đỏ "Đã đạt giới hạn".
 
 ---
 
@@ -362,98 +389,167 @@ So that tài nguyên lưu trữ của hệ thống được kiểm soát và tr�
 
 Epic này phát triển chatbot AI kết hợp RAG và bộ lọc Citation Guardrail chống trích dẫn ảo.
 
-### Story 3.1: Định tuyến & Quản lý phiên chat với PostgresSaver (Chat Session Management with PostgresSaver Checkpointer)
+### Story 3.1: [Backend] Chat Session DB & Core APIs
 
-As a người dùng,
-I want xem lịch sử các phiên chat cũ và khởi tạo phiên chat mới trong dự án hiện tại,
-So that tôi có thể tiếp tục mạch suy nghĩ cũ được lưu trữ an toàn bằng checkpointer PostgresSaver.
-
-**Acceptance Criteria:**
-
-**Given** người dùng click nút tròn biểu tượng Lịch sử trò chuyện (đồng hồ) ở cột phải.
-**When** popover mở ra.
-**Then** hiển thị danh sách các phiên trò chuyện (threads) của dự án hiện tại từ cơ sở dữ liệu.
-**When** người dùng click chọn một phiên chat cũ.
-**Then** Backend load lại các trạng thái checkpoints trước đó từ PostgresSaver để phục hồi lịch sử hội thoại của LangGraph.
-**And** hiển thị toàn bộ nội dung tin nhắn cũ lên khuông chat và đóng popover.
-**When** người dùng click nút Trò chuyện mới (+).
-**Then** hệ thống tạo một `thread_id` mới trong PostgreSQL và reset khung chat về trạng thái trống.
-
-### Story 3.2: Chat RAG stream kết quả qua Server-Sent Events (SSE) (SSE Streaming RAG Chat)
-
-As a người dùng,
-I want gửi tin nhắn hỏi về tài liệu và chatbot trả lời dưới dạng stream ký tự SSE,
-So that tôi có thể đọc phản hồi ngay lập tức với độ trễ thấp mà không cần chờ toàn bộ câu trả lời được sinh xong.
+Với vai trò là người dùng,
+Tôi muốn tạo phiên chat mới và xem lịch sử chat,
+Để tôi lưu lại mạch suy nghĩ.
 
 **Acceptance Criteria:**
 
-**Given** người dùng đã đăng nhập và kết nối SSE qua ticket hợp lệ `GET /api/sse/stream?ticket=<ticket>`.
-**When** nhập câu hỏi và nhấn `ENTER` (hoặc bấm nút gửi).
-**Then** Backend chạy đồ thị LangGraph (Supervisor Agent điều phối RAG Agent gọi `vector_search_tool` để lấy text chunks).
-**And** stream câu trả lời về Frontend theo thời gian thực (SSE events).
-**And** Frontend hiển thị câu chữ dạng máy đánh chữ (typewriter) với độ trễ ký tự đầu tiên (First Chunk Latency) < 3 giây.
-**And** hiển thị trạng thái suy nghĩ của Agent (`agent_thinking`) trước khi bắt đầu trả lời.
+**Given** DB có bảng `chat_threads` và `chat_messages`.
+**When** gọi `POST /api/chat/threads`.
+**Then** tạo thread mới cho user.
+**When** gọi `GET /api/chat/threads/{id}/messages`.
+**Then** trả về danh sách tin nhắn.
 
-### Story 3.3: Chatbot định hướng dựa trên trạng thái dự án (Context-Aware User Guiding)
+> 🔍 **Cách nghiệm thu trực quan:**
+> Dùng Swagger UI gọi POST tạo thread, sau đó gọi GET lấy message (list rỗng). Không cần đụng đến UI.
 
-As a người dùng (đặc biệt là người mới),
-I want chatbot tự cảm nhận trạng thái dự án để chủ động gợi ý các nút Quick Reply động,
-So that tôi biết cần làm gì tiếp theo và điều hướng nhanh chỉ bằng một click.
+### Story 3.2: [Frontend] Chat UI Shell & History Sidebar
 
-**Acceptance Criteria:**
-
-**Given** Frontend gửi kèm payload `ui_context` chứa: tab hiện tại (`active_tab`), số tài liệu (`document_count`), trạng thái bản thảo (`has_draft`).
-**When** người dùng đặt câu hỏi gợi ý hành động hoặc dự án mới tạo hoàn toàn trống.
-**Then** LLM phân tích `ui_context` và trả về danh sách các `suggested_actions` gợi ý hành động thích hợp.
-**And** Frontend hiển thị các gợi ý đó dưới dạng thẻ nút bấm Quick Reply động ở dưới ô nhập chat (ví dụ: `[Tải tài liệu lên]`, `[Xem bản đồ tri thức]`, `[Gợi ý dàn ý]`).
-**When** người dùng click vào nút gợi ý.
-**Then** Frontend tự động chuyển hướng màn hình sang tab tương ứng mà không cần người dùng thao tác thủ công.
-
-### Story 3.4: Citation Guardrail Node chống trích dẫn ảo (Citation Guardrail Node & Auto-Correction)
-
-As a người dùng,
-I want các trích dẫn học thuật (dạng `[1]`, `[2]`) do AI sinh ra phải được đối chiếu và sửa lỗi tự động nếu là trích dẫn ảo,
-So that tôi có được nguồn tài liệu thực tế tin cậy tuyệt đối và không bị lỗi hallucination của LLM.
+Với vai trò là người dùng,
+Tôi muốn giao diện khung chat và danh sách lịch sử,
+Để tôi thao tác được với các phiên trò chuyện cũ.
 
 **Acceptance Criteria:**
 
-**Given** Admin cấu hình `CITATION_ERROR_THRESHOLD = 30%` và `CITATION_RETRY_LIMIT = 2`.
-**When** LLM hoàn tất sinh câu trả lời thô có chứa các thẻ trích dẫn.
-**Then** hệ thống chuyển luồng qua *Citation Verify Node* (chạy code Python thuần sử dụng Regex) đối chiếu danh sách các thẻ trích dẫn với các Chunk dữ liệu thực tế đã truy xuất từ Postgres.
-**And** tính toán tỷ lệ lỗi trích dẫn ảo:
-  - **Nếu tỷ lệ lỗi $\le$ 30%:** Hệ thống tự động thay thế thẻ trích dẫn lỗi thành `[Nguồn không xác định]` hoặc loại bỏ nó ngay lập tức (không gọi lại LLM) và trả kết quả.
-  - **Nếu tỷ lệ lỗi > 30%:** Hệ thống kích hoạt quy trình tự sửa của LLM tối đa 2 lần. Nếu vẫn vượt ngưỡng, trả câu trả lời kèm banner cảnh báo độ tin cậy thấp ở trên đầu.
+**Given** trang thư viện/dashboard.
+**When** bấm biểu tượng Lịch sử.
+**Then** Popover mở ra hiển thị list threads lấy từ API 3.1.
+**When** bấm vào 1 thread, **Then** load tin nhắn ra khu vực chat chính.
 
-### Story 3.5: Giao diện tương tác thẻ trích dẫn (Interactive Citation Tooltip)
+> 🔍 **Cách nghiệm thu trực quan:**
+> Trình duyệt. Bấm biểu tượng Lịch sử. Thấy danh sách. Bấm vào tên, màn hình chính thay đổi (có thể rỗng nếu chưa chat).
 
-As a người dùng,
-I want di chuột hoặc click vào thẻ trích dẫn `[1]` trong chat hoặc bản thảo để xem thông tin bài báo và đoạn text gốc trích dẫn,
-So that tôi có thể đối chiếu nội dung trực tiếp mà không cần mở file thủ công.
+### Story 3.3: [Backend] LangGraph Foundation & Mock RAG
+
+Với vai trò là hệ thống,
+Tôi muốn bộ khung LangGraph khởi tạo,
+Để các tính năng RAG phức tạp có nền móng chạy thử.
 
 **Acceptance Criteria:**
 
-**Given** câu trả lời hiển thị thẻ trích dẫn `[1]`.
-**When** người dùng hover hoặc click vào thẻ trích dẫn `[1]`.
-**Then** Frontend hiển thị giao diện xem nhanh (tooltip bo góc rounded.lg).
-**And** gọi API `GET /api/citations/{citation_id}` để fetch thông tin: Tên bài viết, tác giả, năm, DOI và đoạn văn bản gốc (`text_chunk`) dùng làm căn cứ trích dẫn.
-**And** cung cấp nút liên kết tải xuống tệp PDF hoặc mở URL bài báo gốc trong trình duyệt.
+**Given** Endpoint `POST /api/chat/invoke` (chưa phải SSE).
+**When** gửi câu hỏi.
+**Then** Backend chạy LangGraph Node. Thay vì gọi Vector DB, dùng Dummy Retriever trả về chuỗi text fix cứng.
+**And** trả về câu trả lời JSON đầy đủ ngay lập tức.
 
----
+> 🔍 **Cách nghiệm thu trực quan:**
+> Swagger UI. Gọi API `/invoke` với tin nhắn bất kỳ. Nhận về JSON có chữ "Đây là câu trả lời mock từ hệ thống".
 
-### Chiến dịch Kiểm thử & Giả lập cho Epic 3 (Epic 3 Testing & Mocking Strategy)
+### Story 3.4: [Backend] SSE Chat Streaming API
 
-Do Epic 3 kết hợp luồng logic đa Agent trong LangGraph và stream SSE, chúng ta thiết lập chiến lược mock như sau:
-1. **Mocking Simple RAG & GraphRAG Tools:**
-   - Trong quá trình test Agent, chúng ta mock các công cụ `vector_search_tool` và `graph_search_tool` bằng `unittest.mock`. Các tool mock này sẽ trả về dữ liệu chunk thô giả lập dưới dạng list object thay vì thực sự kết nối DB Postgres/Neo4j, giúp cô lập hành vi suy luận của Agent.
-2. **Mocking LLM Generation Stream:**
-   - Giả lập phản hồi của Gemini API dạng stream (yield text từng phần) có chứa các thẻ trích dẫn hợp lệ và không hợp lệ (ví dụ: sinh thẻ trích dẫn `[9]` mặc dù chỉ có 2 chunks dữ liệu được nạp vào context).
-   - Kiểm chứng xem `Citation Verify Node` có chạy đúng thuật toán phân tích Regex và sửa lỗi thành `[Nguồn không xác định]` hoặc kích hoạt LLM retry tự sửa lỗi khi tỷ lệ lỗi vượt ngưỡng hay không.
-3. **Test Ticket-based SSE Authentication & Last-Event-ID:**
-   - Viết test case tích hợp:
-     - Truy cập stream SSE trực tiếp không có ticket -> Trả về lỗi `HTTP 401 Unauthorized`.
-     - POST `ticket` -> Trả về token một lần.
-     - Gửi request SSE kèm ticket -> Kết nối thành công.
-     - Giả lập mất mạng (ngắt kết nối), kết nối lại và gửi header `Last-Event-ID` -> Backend phải yield lại các message bị nhỡ nằm trong cache buffer.
+Với vai trò là người dùng,
+Tôi muốn gửi tin nhắn và nhận câu trả lời dưới dạng luồng sự kiện,
+Để tôi không phải chờ quá lâu cho câu trả lời dài.
+
+**Acceptance Criteria:**
+
+**Given** tin nhắn của người dùng trong một thread.
+**When** gọi `POST /api/chat/threads/{thread_id}/messages` với Body `{ "message": "..." }`.
+**Then** lưu tin nhắn vào database, khởi tạo luồng xử lý RAG và trả về JSON `{"run_id": "run_xxx"}` ngay lập tức.
+**When** Frontend kết nối `GET /api/chat/stream?run_id=run_xxx`.
+**Then** Backend kết nối SSE để yield từng ký tự câu trả lời sinh ra (giả lập hoặc thực tế qua RAG Graph) bằng `Server-Sent Events` mỗi 50ms.
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Swagger UI gọi POST gửi tin nhắn nhận `run_id`. Dùng Terminal: `curl -N http://localhost:8000/api/chat/stream?run_id=run_xxx`. Thấy console liên tục in ra từng dòng `data: {"chunk": "..."}`.
+
+### Story 3.5: [Frontend] Typewriter UI & SSE Receiver
+
+Với vai trò là người dùng,
+Tôi muốn thấy chữ gõ ra từ từ trên giao diện,
+Để tôi biết AI đang gõ phản hồi.
+
+**Acceptance Criteria:**
+
+**Given** người dùng gửi tin nhắn trên UI.
+**When** gọi API POST gửi tin nhắn và nhận được `run_id`.
+**Then** thiết lập kết nối `GET /api/chat/stream?run_id=...`.
+**And** hiển thị icon "AI is thinking..." cho đến khi nhận được chunk đầu tiên.
+**And** chữ xuất hiện dần dần thành hiệu ứng Typewriter. Cập nhật thanh cuộn tự động (auto-scroll).
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Mở Web, gõ tin nhắn, thấy icon xoay xoay rồi chữ hiện dần từng từ mượt mà, cuộn xuống dần nếu dài.
+
+### Story 3.6: [Backend] Context-Aware Suggestion API
+
+Với vai trò là người dùng,
+Tôi muốn AI gợi ý hành động tiếp theo,
+Để tôi không bị bối rối.
+
+**Acceptance Criteria:**
+
+**Given** payload `{"active_tab": "library", "document_count": 0}`.
+**When** gọi `POST /api/chat/suggestions`.
+**Then** LLM Adapter (mock) sinh mảng 3 chuỗi text (ví dụ: `["Upload file PDF", "Search paper", "Help"]`).
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Swagger UI. Truyền JSON `document_count=0`. Xem mảng trả về có đúng gợi ý yêu cầu tải lên tài liệu không.
+
+### Story 3.7: [Frontend] Quick Reply Action UI
+
+Với vai trò là người dùng,
+Tôi muốn bấm nút gợi ý dưới khung chat để điều hướng nhanh,
+Để tôi đỡ phải tìm nút thủ công.
+
+**Acceptance Criteria:**
+
+**Given** mảng text gợi ý từ API 3.6.
+**When** UI hiển thị thành các nút pill/chip.
+**When** click vào nút `"Upload file PDF"`.
+**Then** Frontend điều hướng sang tab Library và mở sẵn Modal Upload.
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Trên Web, thấy 3 nút bấm dưới ô chat. Bấm 1 nút, hệ thống tự động chuyển sang tab Library và hiển thị Modal tương ứng.
+
+### Story 3.8: [Backend] Citation Guardrail Node Logic
+
+Với vai trò là hệ thống,
+Tôi muốn một node chạy Python Regex để kiểm duyệt số trích dẫn,
+Để chống trích dẫn ảo (hallucination).
+
+**Acceptance Criteria:**
+
+**Given** câu trả lời chứa các thẻ trích dẫn dạng `[id]` sinh ra bởi LLM.
+**When** đi qua node Guardrail.
+**Then** hệ thống kiểm chứng danh sách các ID trích dẫn xuất hiện trong câu trả lời đối chiếu với danh sách các chunk ID thực tế được trả về bởi bộ truy vấn (retriever) cho câu hỏi đó (`valid_citation_ids = list of chunk IDs returned by retriever for the current answer`).
+**And** nếu bất kỳ thẻ trích dẫn `[id]` nào không nằm trong danh sách `valid_citation_ids`, thay thế thẻ đó bằng `[Nguồn không xác định]` hoặc gỡ bỏ.
+**Example**: LLM sinh `"Apple is red [1] và blue [99]"` nhưng `valid_citation_ids` chỉ có `[1]`. Node Guardrail biến đổi kết quả thành `"Apple is red [1] và blue [Nguồn không xác định]"`.
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Chạy script test hoặc Swagger. Truyền text chứa `[99]` và giả lập `valid_citation_ids=[1]`. Thấy API trả về text đã bị che thành chữ cảnh báo mà không cần giao diện phức tạp.
+
+### Story 3.9: [Backend] Citation Detail Fetch API
+
+Với vai trò là hệ thống,
+Tôi muốn API trả về nguyên văn đoạn text gốc của trích dẫn,
+Để giao diện (Frontend) có cái để hiển thị.
+
+**Acceptance Criteria:**
+
+**Given** `id=1`.
+**When** gọi `GET /api/citations/1`.
+**Then** truy vấn CSDL lấy bản ghi chunk ID=1.
+**And** trả về JSON `{ "title": "Paper A", "text": "Apple color is red..." }`.
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Gọi API qua Swagger. Truyền ID 1. Nhận về JSON đoạn văn bản.
+
+### Story 3.10: [Frontend] Interactive Citation Tooltip UI
+
+Với vai trò là người dùng,
+Tôi muốn rê chuột vào số `[1]` để xem trích dẫn,
+Để không làm gián đoạn mạch đọc.
+
+**Acceptance Criteria:**
+
+**Given** đoạn chat hiện số `[1]` là một thẻ HTML có class `.citation-link`.
+**When** người dùng hover chuột vào.
+**Then** Frontend gọi API 3.9 và bật popover nhỏ nổi lên chứa dòng chữ "Apple color is red".
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Web UI. Rê chuột vào thẻ màu xanh `[1]`. Một tooltip đen hiện lên chứa 2 dòng chữ. Di chuột ra ngoài thì tooltip biến mất.
 
 ---
 
@@ -461,83 +557,114 @@ Do Epic 3 kết hợp luồng logic đa Agent trong LangGraph và stream SSE, ch
 
 Epic này trực quan hóa và đồng bộ hóa mạng lưới trích dẫn giữa các bài báo sử dụng Neo4j và Cytoscape.js.
 
-### Story 4.1: Đồng bộ Postgres sang Neo4j Event-driven qua outbox worker (Graph Event-Driven Sync Manager)
+### Story 4.1: [Backend] Neo4j Connection & Base Cypher
 
-As a hệ thống,
-I want lắng nghe các thay đổi trong Postgres để ghi sự kiện vào `sync_outbox`, sau đó background worker chạy cypher MERGE để đồng bộ sang Neo4j,
-So that dữ liệu đồ thị tri thức luôn nhất quán với cơ sở dữ liệu quan hệ Postgres.
-
-**Acceptance Criteria:**
-
-**Given** người dùng thêm hoặc cập nhật tài liệu trong dự án.
-**When** giao dịch ghi vào Postgres thành công.
-**Then** hệ thống ghi một sự kiện tương ứng vào bảng `sync_outbox` trong cùng một transaction.
-**When** background worker arq quét bảng `sync_outbox`.
-**Then** sử dụng truy vấn `SELECT ... FOR UPDATE SKIP LOCKED` để lấy các sự kiện chưa xử lý và lock theo `project_id` trên Redis.
-**And** chạy các câu lệnh Cypher MERGE để đồng bộ thông tin (Paper, Author, CITES) sang Neo4j an toàn, tránh deadlock.
-
-### Story 4.2: Cơ chế Xóa mềm & Dọn dẹp Garbage Collection (Workspace Soft-Delete & GC)
-
-As a hệ thống,
-I want khi người dùng xóa tài liệu/dự án thì chỉ cập nhật trạng thái xóa mềm trong cơ sở dữ liệu và gán nhãn Deleted trong Neo4j, sau đó cron job ban đêm quét xóa cứng dữ liệu cũ quá 7 ngày,
-So that dữ liệu thừa được dọn dẹp sạch sẽ mà không làm crash các truy vấn đang chạy hoặc các phiên làm việc hiện tại.
+Với vai trò là hệ thống,
+Tôi muốn tạo driver kết nối Neo4j,
+Để tôi có thể chạy thử các lệnh Cypher MERGE.
 
 **Acceptance Criteria:**
 
-**Given** người dùng thực hiện xóa dự án hoặc bài báo.
-**When** Backend nhận yêu cầu xóa.
-**Then** hệ thống cập nhật trạng thái xóa mềm trong Postgres và ghi sự kiện cập nhật vào `sync_outbox`.
-**And** Worker đồng bộ cập nhật nhãn `(:Deleted)` cho các nodes tương ứng trong Neo4j.
-**And** các truy vấn RAG và đồ thị luôn tự động bỏ qua các nodes có nhãn `(:Deleted)` thông qua mệnh đề `WHERE NOT p:Deleted`.
-**When** cron job chạy định kỳ lúc 2h sáng.
-**Then** hệ thống quét và xóa vĩnh viễn (hard-delete) tất cả các dữ liệu đã bị xóa mềm quá 7 ngày ở cả Postgres và Neo4j.
+**Given** thông tin kết nối Neo4j.
+**When** Backend start lên.
+**Then** tạo Neo4j Driver pool.
+**And** cung cấp API giả lập `POST /api/neo4j/test` để test chạy lệnh Cypher tạo Node tĩnh.
 
-### Story 4.3: Vẽ đồ thị Cytoscape.js & Tải động (Lazy Graph Rendering & Expand API)
+> 🔍 **Cách nghiệm thu trực quan:**
+> Swagger UI. Gọi API `/neo4j/test`. Sau đó mở trình duyệt Neo4j Browser (localhost:7474), xem có Node nào vừa sinh ra không.
 
-As a người dùng,
-I want xem bản đồ trích dẫn bài báo dạng đồ thị Cytoscape.js giới hạn tối đa 150 nodes/300 edges ban đầu và có thể click expand 1-hop lân cận,
-So that trình duyệt không bị treo khi dự án lớn và tôi có thể chủ động khám phá đồ thị một cách mượt mà.
+### Story 4.2: [Backend] Outbox Worker Foundation
 
-**Acceptance Criteria:**
-
-**Given** người dùng chuyển sang Tab Bản đồ Tri thức.
-**When** đồ thị được tải.
-**Then** API Backend giới hạn kết quả trả về ban đầu tối đa 150 nodes và 300 edges, kèm theo cờ `hasMore = true` nếu vượt quá giới hạn.
-**And** Frontend vẽ đồ thị Cytoscape.js hỗ trợ zoom, pan và kéo thả tự do các nodes.
-**When** người dùng double click vào một node bài báo.
-**Then** Frontend gọi API `GET /api/projects/{project_id}/graph/nodes/{node_id}/expand` lấy các node và cạnh lân cận trong vòng 1-hop của node được chọn (giới hạn 20 thực thể mới).
-**And** thêm các nodes mới vào Cytoscape viewport bằng incremental layout (bố cục gia tăng) mà không làm xáo trộn vị trí của các node cũ đang hiển thị.
-
-### Story 4.4: Node Detail Card & Tích hợp Phát hiện Khoảng trống trực quan (Node Details & Gap Highlight)
-
-As a người dùng,
-I want click vào một node bài báo để mở slide-card xem metadata và bật chế độ "Tìm khoảng trống nghiên cứu" để highlight các node mâu thuẫn thực nghiệm,
-So that tôi nhanh chóng nhận biết các khoảng trống học thuật trực tiếp trên sơ đồ mạng lưới.
+Với vai trò là hệ thống,
+Tôi muốn một worker lắng nghe hàng đợi outbox và dùng Redis Lock,
+Để tôi có bộ khung an toàn để chạy tiến trình đồng bộ.
 
 **Acceptance Criteria:**
 
-**Given** người dùng click vào một node bài báo trên canvas đồ thị.
-**When** node được chọn.
-**Then** node đổi màu viền sang xanh lá đậm.
-**And** một slide-card Node Detail Card trượt ra từ góc trên bên phải canvas đồ thị, hiển thị các thông tin metadata (Title, Authors, Abstract, Year) mà không đè lên panel chatbot bên phải.
-**When** người dùng bật nút nổi "Tìm khoảng trống nghiên cứu" ở góc trái đồ thị.
-**Then** hệ thống tô viền nhấp nháy đỏ cho các node bài báo có nhận định mâu thuẫn thực nghiệm (`(:Finding)-[:CONTRADICTS]->(:Finding)`) và viền vàng cho các node trích dẫn cô lập (không liên kết trích dẫn).
+**Given** Worker Arq đang chạy.
+**When** nhận trigger.
+**Then** lấy Lock trên Redis. Print log "Lock acquired".
+**And** thả Lock sau khi xong.
 
----
+> 🔍 **Cách nghiệm thu trực quan:**
+> Terminal. Trigger worker 2 lần liên tục. Thấy worker 1 báo "Lock acquired", worker 2 báo "Locked, skip".
 
-### Chiến lược Kiểm thử & Giả lập cho Epic 4 (Epic 4 Testing & Mocking Strategy)
+### Story 4.3: [Backend] Event-Driven Graph Sync
 
-Để kiểm thử tự động phần đồ thị và đồng bộ dữ liệu:
-1. **Mocking Neo4j Driver (Graph Database Mocking):**
-   - Trong quá trình test API, chúng ta mock hoàn toàn Neo4j Driver (`neo4j.AsyncDriver`) trả về danh sách mock records chứa thông tin node và relationship giả định, giúp kiểm thử API `/expand` và `/graph` mà không cần chạy instance Neo4j thật.
-2. **Test Outbox Sync Concurrency & Lock:**
-   - Viết test case tích hợp cho worker đồng bộ:
-     - Tạo 2 tiến trình worker đồng thời gọi xử lý cùng một `project_id`.
-     - Xác thực cơ chế phân tán dùng Redis lock và `SELECT ... FOR UPDATE SKIP LOCKED` đảm bảo chỉ có 1 worker được xử lý đồng bộ đồ thị cho dự án đó tại một thời điểm.
-     - Test luồng Lock Heartbeat: Giả lập tác vụ đồng bộ chạy lâu hơn thời gian timeout của lock, kiểm tra xem luồng phụ có tự động gia hạn thời gian sống của lock trong Redis hay không.
-3. **Cytoscape.js Frontend Rendering Mock:**
-   - Viết component test cho frontend: giả lập dữ liệu JSON đồ thị có cờ `hasMore = true`, verify Cytoscape vẽ đúng số node.
-   - Giả lập double-click vào node, mock kết quả trả về từ API `/expand` và verify các node mới được vẽ thêm vào viewport mà không bị mất đi các node cũ.
+Với vai trò là hệ thống,
+Tôi muốn nối worker 4.2 với Cypher 4.1,
+Để dữ liệu đẩy từ Postgres sang Neo4j thật sự.
+
+**Acceptance Criteria:**
+
+**Given** một record `sync_outbox` xuất hiện trong Postgres.
+**When** Worker quét được.
+**Then** dịch dữ liệu đó sang lệnh MERGE và lưu thành công vào Neo4j.
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Insert 1 dòng thủ công vào bảng `sync_outbox` trong DBeaver. Vài giây sau mở Neo4j xem node có tự mọc lên không.
+
+### Story 4.4: [Backend] Graph Garbage Collection
+
+Với vai trò là hệ thống,
+Tôi muốn cronjob dọn rác,
+Để dữ liệu không phình to.
+
+**Acceptance Criteria:**
+
+**Given** tài liệu đã bị xóa mềm `is_deleted=true` quá 7 ngày.
+**When** Cronjob chạy lúc 2h sáng.
+**Then** xóa hẳn khỏi Postgres và Neo4j.
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Sửa data thành ngày xóa là 1 tháng trước. Chạy thủ công Cronjob. Reload DBeaver thấy data biến mất.
+
+### Story 4.5: [Frontend] Cytoscape.js Foundation
+
+Với vai trò là người dùng,
+Tôi muốn xem màn hình vẽ đồ thị cơ bản,
+Để tôi có không gian trực quan.
+
+**Acceptance Criteria:**
+
+**Given** truy cập tab Bản đồ.
+**When** component render.
+**Then** vẽ 1 đồ thị mock tĩnh có 3 node và 2 edge bằng Cytoscape. Có thể zoom/kéo thả.
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Mở Web, vào tab Bản đồ. Thấy 3 nút tròn (nodes) nối với nhau. Rê chuột kéo thả để di chuyển các nút tròn dễ dàng.
+
+### Story 4.6: [Backend] Lazy Graph Expand API
+
+Với vai trò là người dùng,
+Tôi muốn API lấy node lân cận,
+Để tôi có thể xem các trích dẫn của 1 nút (node).
+
+**Acceptance Criteria:**
+
+**Given** ID node.
+**When** gọi `GET /api/graph/expand/{id}`.
+**Then** truy vấn Neo4j lấy 1-hop trả về JSON chuẩn cytoscape.
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Gọi API qua Swagger. Nhận về danh sách JSON Nodes, Edges.
+
+### Story 4.7: [Frontend] Interactive Graph UI (Expand & Details)
+
+Với vai trò là người dùng,
+Tôi muốn tương tác đồ thị thật,
+Để tôi khám phá được mạng lưới.
+
+**Acceptance Criteria:**
+
+**Given** đồ thị đang hiển thị.
+**When** double-click vào node.
+**Then** gọi API 4.6, vẽ thêm node lân cận.
+**When** bật nút highlight.
+**Then** tô viền đỏ cho node mâu thuẫn.
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Trên Web. Nhấp đúp chuột trái vào 1 nút tròn (node), thấy nó hiển thị thêm các nút con liên kết.
 
 ---
 
@@ -545,75 +672,93 @@ So that tôi nhanh chóng nhận biết các khoảng trống học thuật tr�
 
 Epic này phát triển không gian soạn thảo nháp, xuất báo cáo và trang cấu hình hệ thống dành cho Admin.
 
-### Story 5.1: Soạn thảo Literature Review & Quản lý bản thảo (Literature Review Drafting & Version Saving)
+### Story 5.1: [Backend] Draft Versioning API
 
-As a người dùng,
-I want soạn thảo văn bản tổng quan tài liệu trong rich text editor, lưu nháp tự động và phục hồi các phiên bản cũ,
-So that tôi có thể quản lý chặt chẽ nội dung tài liệu tổng quan mà không sợ mất dữ liệu.
-
-**Acceptance Criteria:**
-
-**Given** người dùng chọn tab Hỗ trợ viết tổng quan trong dự án.
-**When** người dùng bắt đầu viết nháp nội dung Literature Review.
-**Then** hệ thống tự động lưu nháp sau mỗi 10 giây (với chỉ báo `"Đang lưu..."` và `"Đã lưu"` ở góc màn hình) và lưu trữ lịch sử phiên bản vào PostgreSQL.
-**When** người dùng xem danh sách bản thảo và click chọn khôi phục một phiên bản cũ.
-**Then** hệ thống ghi đè nội dung editor bằng nội dung của phiên bản được chọn.
-
-### Story 5.2: Đóng gói và Xuất bản thảo chuẩn Markdown & BibTeX (ZIP Exporting)
-
-As a người dùng,
-I want xuất bản thảo và toàn bộ danh mục tài liệu trích dẫn thành tệp ZIP chứa Markdown `.md` và BibTeX/APA `.bib`,
-So that tôi có thể tải xuống sử dụng ngay cho các công cụ viết bài báo (LaTeX, Overleaf, Word).
+Với vai trò là người dùng,
+Tôi muốn API CRUD bản nháp,
+Để bản nháp của tôi được lưu vào cơ sở dữ liệu.
 
 **Acceptance Criteria:**
 
-**Given** người dùng có bản thảo đã hoàn thành có chứa các thẻ trích dẫn.
-**When** người dùng click nút "Xuất báo cáo".
-**Then** Backend thu thập nội dung bản thảo và metadata các bài báo có trong dự án.
-**And** chuyển đổi danh mục trích dẫn sang chuẩn format BibTeX `.bib`.
-**And** nén cả 2 tệp (Markdown `.md` và BibTeX `.bib`) thành một tệp nén ZIP.
-**And** trả về stream tải tệp ZIP về máy tính của người dùng.
+**Given** text bản nháp.
+**When** gọi `POST /api/drafts`.
+**Then** lưu vào DB `drafts`.
 
-### Story 5.3: Cài đặt hệ thống động của Admin lưu cơ sở dữ liệu (Dynamic System Settings via Admin Panel)
+> 🔍 **Cách nghiệm thu trực quan:**
+> Swagger UI. Gọi POST. Kiểm tra DB thấy text.
 
-As an Admin,
-I want điều chỉnh cấu hình giới hạn hệ thống động qua UI cài đặt dành cho Admin (lưu vào database Postgres),
-So that tôi có thể tối ưu hóa và quản trị tài nguyên server mà không cần restart hay deploy lại server.
+### Story 5.2: [Frontend] Rich Text Editor Foundation
 
-**Acceptance Criteria:**
-
-**Given** người dùng có vai trò là Admin.
-**When** nhấp biểu tượng bánh răng ở Header để vào Trang Cài đặt Hệ thống và cập nhật các tham số (ví dụ: đổi `MAX_PAPERS_PER_PROJECT` từ 15 thành 5).
-**Then** Backend lưu trữ các tham số cấu hình động này vào bảng `settings` trong PostgreSQL.
-**And** áp dụng cấu hình mới ngay lập tức.
-**When** người dùng thường (`role = 'user'`) cố tình truy cập trang Cài đặt hoặc gửi request thay đổi cấu hình.
-**Then** Backend trả về mã lỗi `HTTP 403 Forbidden` và chặn chỉnh sửa.
-
-### Story 5.4: Trang Landing Page vãng lai & Bản demo mô phỏng (Guest Landing Page & Mock Simulator)
-
-As a khách vãng lai,
-I want xem trang giới thiệu Landing page có bảng so sánh giá và tương tác thử với Khung Demo Giả lập,
-So that tôi hiểu được tính năng của ứng dụng trước khi quyết định đăng ký tài khoản.
+Với vai trò là người dùng,
+Tôi muốn bộ soạn thảo chữ,
+Để tôi gõ được văn bản in đậm, in nghiêng.
 
 **Acceptance Criteria:**
 
-**Given** khách vãng lai chưa đăng nhập truy cập vào trang chủ.
-**When** xem trang Landing page.
-**Then** hiển thị đầy đủ giao diện cuộn dọc gồm Hero banner giới thiệu, Bảng giá (gói Sinh viên free và Nghiên cứu viên Pro nổi bật viền cobalt).
-**When** khách nhập từ khóa bất kỳ vào ô tìm kiếm trong Khung Demo Giả lập và click Tìm thử.
-**Then** Khung demo mô phỏng tìm kiếm bài báo trong 1.5s (hiển thị loading spinner).
-**And** render ra một đồ thị trích dẫn Cytoscape demo đơn giản có 1 node đỏ nhấp nháy tượng trưng cho khoảng trống nghiên cứu để khách tương tác thử.
+**Given** trang Soạn thảo.
+**When** mở trang.
+**Then** render trình soạn thảo (Tiptap/Quill). Gõ chữ được.
 
----
+> 🔍 **Cách nghiệm thu trực quan:**
+> Mở web, gõ chữ, bôi đen, bấm Ctrl+B thấy chữ in đậm.
 
-### Chiến dịch Kiểm thử & Giả lập cho Epic 5 (Epic 5 Testing & Mocking Strategy)
+### Story 5.3: [Frontend] Auto-save & History UI
 
-Để kiểm thử tự động các chức năng soạn thảo, xuất ZIP và phân quyền cài đặt Admin:
-1. **Mocking Export ZIP Payload:**
-   - Viết unit test cho API `/export`. Thiết lập mock database trả về dữ liệu bản thảo và tài liệu mẫu.
-   - Sử dụng thư viện `zipfile` của Python trong test script để đọc trực tiếp dữ liệu nhị phân trả về, verify tệp ZIP chứa đúng 2 file `.md` và `.bib` với format BibTeX hợp lệ.
-2. **Settings Boundary Validation Tests:**
-   - Viết các test case kiểm chứng phân quyền của Admin: gửi request thay đổi cài đặt bằng token của user thường -> Đảm bảo trả về lỗi `HTTP 403 Forbidden`.
-   - Kiểm thử validate đầu vào cài đặt: gửi các giá trị âm hoặc không hợp lệ (như tỷ lệ trích dẫn lỗi âm) -> Đảm bảo Backend trả về lỗi validation `HTTP 422 Unprocessable Entity`.
-3. **Frontend Localization & Theme Swap Mock:**
-   - Viết component test cho Header: giả lập click `VI | EN` hoặc nút sáng tối, verify các phần tử DOM thay đổi nhãn ngôn ngữ và class CSS theme tức thời mà không phát sinh thêm bất kỳ lượt reload trang nào.
+Với vai trò là người dùng,
+Tôi muốn hệ thống tự lưu mỗi 10s,
+Để tôi không sợ mất dữ liệu.
+
+**Acceptance Criteria:**
+
+**Given** đang gõ text.
+**When** dừng tay 10s.
+**Then** tự động gọi API 5.1 lưu. Chữ "Đã lưu" nhấp nháy góc phải.
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Web UI. Gõ xong ngừng gõ chữ/thao tác trong 10 giây, nhìn góc phải thấy dòng chữ trạng thái "Đang lưu..." hiện lên.
+
+### Story 5.4: [Backend] ZIP Export API
+
+Với vai trò là người dùng,
+Tôi muốn API xuất file,
+Để tôi tải được tệp tin về máy.
+
+**Acceptance Criteria:**
+
+**Given** ID bản nháp.
+**When** gọi `GET /api/drafts/{id}/export`.
+**Then** Backend gom text + bib, nén thành `export.zip`, trả về dạng File Stream.
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Swagger UI. Gọi GET. Trình duyệt tự tải 1 file `export.zip` về, mở ra xem có 2 file bên trong không.
+
+### Story 5.5: [Frontend] Export Button
+
+Với vai trò là người dùng,
+Tôi muốn bấm nút để tải,
+Để không cần gọi API.
+
+**Acceptance Criteria:**
+
+**Given** góc trái màn hình soạn thảo.
+**When** bấm "Xuất file".
+**Then** tự động gọi API 5.4 và tải ZIP về.
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Bấm nút trên giao diện, trình duyệt hiển thị thanh download tải file.
+
+### Story 5.6: [FE+BE] Admin Settings Management
+
+Với vai trò là Quản trị viên (Admin),
+Tôi muốn thay đổi cấu hình giới hạn,
+Để hệ thống linh hoạt.
+
+**Acceptance Criteria:**
+
+**Given** trang Settings.
+**When** sửa ô `MAX_PAPERS` = 10, bấm Lưu.
+**Then** gọi API PATCH `/api/settings` lưu DB. User thường sửa sẽ báo 403.
+
+> 🔍 **Cách nghiệm thu trực quan:**
+> Đăng nhập Admin, đổi số 15 thành 10 trên UI. Mở cửa sổ ẩn danh đăng nhập User thường thì không thấy menu đó.
+

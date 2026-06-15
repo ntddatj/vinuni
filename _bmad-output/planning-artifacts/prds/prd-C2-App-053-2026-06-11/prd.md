@@ -211,7 +211,7 @@ Tất cả các tính năng và yêu cầu chức năng (FR-1 đến FR-15) đư
 
 ## 8. Non-Functional Requirements (NFR) cho MVP
 Hệ thống được thiết kế để triển khai chạy ổn định trên cấu hình tối thiểu là máy ảo **Xubuntu 6 vcores, 32GB RAM**:
-- **Concurrency**: Đảm bảo phục vụ tối đa 50 người dùng hoạt động đồng thời (active sessions) mà không gây treo hệ thống.
+- **Concurrency**: Đảm bảo phục vụ tối đa 10 người dùng hoạt động đồng thời (active sessions) mà không gây treo hệ thống.
 - **Storage Limit**: Dung lượng tải lên tối đa là 20MB cho mỗi tệp tài liệu cá nhân (PDF/DOCX).
 - **Database Performance**: pgvector sử dụng chỉ mục B-Tree trên trường `project_id` kết hợp với chỉ mục HNSW trên trường `embedding` để đảm bảo thời gian truy vấn RAG dưới 500ms khi quy mô cơ sở dữ liệu dưới 100,000 dòng vector.
 - **Background Processing**: Sử dụng FastAPI `BackgroundTasks` để tải tệp và chạy OCR bất đồng bộ, giải phóng thread chính của Server để phục vụ các request thông thường.
