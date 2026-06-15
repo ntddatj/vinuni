@@ -278,6 +278,17 @@ AcademicPaper áp dụng các bo góc có bán kính hẹp để giữ giao di�
 * Hộp cảnh báo lỗi xuất hiện khi dự án đạt giới hạn tài liệu tối đa và người dùng cố gắng nạp thêm.
 * Nền đỏ nhạt, viền đỏ `{colors.state-danger}`, chữ `{colors.state-danger}` đậm, hiển thị rõ ràng thông điệp chặn hành động.
 
+### 19. API Keys Management Panel (Bảng quản lý API Keys cá nhân)
+* Hiển thị dạng danh sách thẻ (Card) mờ kính (Glassmorphic) cho từng nhà cung cấp API (Gemini, Semantic Scholar, arXiv).
+* Trường nhập hiển thị Key mặc định bị che: `••••••••••••••••3a5F`. Click biểu tượng bút chì để chuyển sang input sửa đổi. Nút "Test Connection" hiển thị spinner xoay tròn khi đang chạy và đổi nhãn thành `Testing...`.
+* Trạng thái kết nối hiển thị bằng các nhãn Badge trực quan: xanh lá 🟢 `Connected` và dòng chữ `Last Sync: x mins ago`, hoặc màu xám `Not configured`.
+* Ảnh tham chiếu trực quan: [mockups/api_key_management_ui.png](file:///home/agent/github/C2-App-053/_bmad-output/planning-artifacts/ux-designs/ux-C2-App-053-2026-06-12/mockups/api_key_management_ui.png).
+
+### 20. First Admin Onboarding Wizard (Luồng thiết lập nhanh cho Admin đầu tiên)
+* Hiển thị banner chào mừng màu tím huyền ảo khi phát hiện hệ thống trống (`users_count == 0`), chỉ dẫn rằng tài khoản đăng ký đầu tiên tự động nhận quyền Admin.
+* Biểu mẫu thiết lập nhanh (Setup Wizard) gồm 2 thẻ bước: Nhập API Key hệ thống chung, và Cấu hình các giới hạn mặc định ban đầu.
+
+
 ---
 
 ## Do's and Don'ts

@@ -174,6 +174,15 @@ Giữ nguyên giọng văn học thuật, trung thực và trực diện.
 ### 18. Hard Document Limit Error Alert (Cảnh báo lỗi cứng giới hạn tài liệu)
 * Khi số tài liệu đạt giới hạn cứng, hệ thống vô hiệu hóa nút nạp tài liệu và hiển thị hộp cảnh báo đỏ viền đậm màu `{colors.state-danger}` với thông điệp: *"Dự án đã đạt giới hạn tài liệu tối đa của hệ thống ({MAX_PAPERS_PER_PROJECT} tài liệu). Vui lòng liên hệ Admin hoặc xóa bớt tài liệu."*
 
+### 19. API Keys Management Panel (Bảng quản lý API Keys cá nhân)
+* **Trạng thái lưu key:** Masking key bảo mật, chỉ để lộ 4 ký tự cuối (ví dụ: `••••••••••••••••3a5F`). Nút chỉnh sửa và nút xóa hiển thị rõ khi người dùng thao tác.
+* **Tương tác Test Connection:** Khi bấm "Test Connection", hiển thị spinner xoay tròn và nhãn đổi thành `Testing...` để gọi kiểm tra key. Khi thành công hiển thị badge 🟢 `Connected`, khi thất bại hiển thị badge 🔴 `Failed` kèm dòng thông báo lỗi chi tiết bên dưới.
+
+### 20. First Admin Onboarding Wizard (Luồng thiết lập nhanh cho Admin đầu tiên)
+* **Đăng ký Admin:** Hiển thị banner màu tím huyền ảo hướng dẫn người dùng đăng ký đầu tiên tự động nhận quyền Admin.
+* **Onboarding Setup:** Chuyển hướng người dùng qua Setup Wizard 2 bước: Nhập API Key hệ thống và Cấu hình giới hạn tài liệu/luồng nạp song song trước khi truy cập Dashboard.
+
+
 ---
 
 ## State Patterns
