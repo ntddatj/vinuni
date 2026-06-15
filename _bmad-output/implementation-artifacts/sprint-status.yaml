@@ -1,0 +1,82 @@
+# generated: 2026-06-15T17:36:00+07:00
+# last_updated: 2026-06-15T17:36:00+07:00
+# project: C2-App-053
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: /home/agent/github/C2-App-053/_bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-06-15T17:36:00+07:00
+last_updated: 2026-06-15T17:36:00+07:00
+project: C2-App-053
+project_key: NOKEY
+tracking_system: file-system
+story_location: /home/agent/github/C2-App-053/_bmad-output/implementation-artifacts
+
+development_status:
+  epic-1: backlog
+  1-1-dang-ky-tai-khoan-phan-quyen-admin-khoi-tao: backlog
+  1-2-dang-nhap-xac-thuc-bang-httponly-cookie: backlog
+  1-3-quy-trinh-onboarding-khoi-tao-du-an-dau-tien: backlog
+  1-4-crud-du-an-nghien-cuu-left-sidebar-dieu-huong: backlog
+  1-5-giao-dien-3-cot-bo-chuyen-doi-ngon-ngu-chu-de: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-quan-ly-api-keys-ca-nhan-ma-hoa-bao-mat: backlog
+  2-2-tim-kiem-bai-bao-hoc-thuat-song-song-voi-xu-ly-loi-degraded-union: backlog
+  2-3-goi-y-phan-nganh-mece-cho-chu-de-qua-rong: backlog
+  2-4-upload-tep-pdf-docx-thu-cong-trich-xuat-metadata-thong-minh: backlog
+  2-5-ingestion-bat-dong-bo-qua-worker-arq-stream-tien-trinh-sse: backlog
+  2-6-kiem-soat-gioi-han-so-luong-tai-lieu-admin-dat-ra: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-dinh-tuyen-quan-ly-phien-chat-voi-postgressaver: backlog
+  3-2-chat-rag-stream-ket-qua-qua-server-sent-events-sse: backlog
+  3-3-chatbot-dinh-huong-dua-tren-trang-thai-du-an: backlog
+  3-4-citation-guardrail-node-chong-trich-dan-ao: backlog
+  3-5-giao-dien-tuong-tac-the-trich-dan: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-dong-bo-postgres-sang-neo4j-event-driven-qua-outbox-worker: backlog
+  4-2-co-che-xoa-mem-don-dep-garbage-collection: backlog
+  4-3-ve-do-thi-cytoscape-js-tai-dong: backlog
+  4-4-node-detail-card-tich-hop-phat-hien-khoang-trong-truc-quan: backlog
+  epic-4-retrospective: optional
+
+  epic-5: backlog
+  5-1-soan-thao-literature-review-quan-ly-ban-thao: backlog
+  5-2-dong-goi-va-xuat-ban-thao-chuan-markdown-bibtex: backlog
+  5-3-cai-dat-he-thong-dong-cua-admin-luu-co-so-du-lieu: backlog
+  5-4-trang-landing-page-vang-lai-ban-demo-mo-phong: backlog
+  epic-5-retrospective: optional
