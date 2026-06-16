@@ -5,7 +5,10 @@
   --ink-primary: #1E2022;
   --ink-secondary: #64748B;
   --accent-blue: #2563EB;
+  --accent-violet: #8B5CF6;
   --state-danger: #EF4444;
+  --state-success: #10B981;
+  --state-warning: #F59E0B;
   --border-hairline: #E2E8F0;
 }
 
@@ -15,7 +18,10 @@
   --ink-primary: #E4E6EB;
   --ink-secondary: #94A3B8;
   --accent-blue: #60A5FA;
+  --accent-violet: #A78BFA;
   --state-danger: #F87171;
+  --state-success: #34D399;
+  --state-warning: #FBBF24;
   --border-hairline: #383A40;
 }
 

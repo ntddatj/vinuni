@@ -1,0 +1,6 @@
+.layout {
+  display: flex;
+  height: calc(100vh - 56px);
+  overflow: hidden;
+  background: var(--surface-base);
+}
