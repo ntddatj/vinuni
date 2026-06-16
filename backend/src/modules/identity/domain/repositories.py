@@ -9,6 +9,10 @@ class UserRepository(ABC):
         ...
 
     @abstractmethod
+    async def find_by_id(self, user_id: str) -> User | None:
+        ...
+
+    @abstractmethod
     async def count_all(self) -> int:
         ...
 

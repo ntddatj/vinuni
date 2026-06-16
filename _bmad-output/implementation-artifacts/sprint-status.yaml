@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-15T17:36:00+07:00
-last_updated: 2026-06-16T12:00:00+07:00
+last_updated: 2026-06-16T16:30:00+07:00
 project: C2-App-053
 project_key: NOKEY
 tracking_system: file-system
@@ -44,8 +44,8 @@ story_location: /home/agent/github/C2-App-053/_bmad-output/implementation-artifa
 development_status:
   epic-1: in-progress
   1-1-dang-ky-tai-khoan-phan-quyen-admin-khoi-tao: done
-  1-2-dang-nhap-xac-thuc-bang-httponly-cookie: backlog
-  1-3-quy-trinh-onboarding-khoi-tao-du-an-dau-tien: backlog
+  1-2-dang-nhap-xac-thuc-bang-httponly-cookie: done
+  1-3-quy-trinh-onboarding-khoi-tao-du-an-dau-tien: done
   1-4-crud-du-an-nghien-cuu-left-sidebar-dieu-huong: backlog
   1-5-giao-dien-3-cot-bo-chuyen-doi-ngon-ngu-chu-de: backlog
   epic-1-retrospective: optional

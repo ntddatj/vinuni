@@ -17,6 +17,11 @@ class PostgresUserRepository(UserRepository):
         orm = result.scalar_one_or_none()
         return self._to_domain(orm) if orm else None
 
+    async def find_by_id(self, user_id: str) -> User | None:
+        result = await self._session.execute(select(UserORM).where(UserORM.id == user_id))
+        orm = result.scalar_one_or_none()
+        return self._to_domain(orm) if orm else None
+
     async def count_all(self) -> int:
         result = await self._session.execute(select(func.count()).select_from(UserORM))
         return result.scalar_one()

@@ -16,3 +16,20 @@ class UserResponseDTO:
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+
+@dataclass
+class LoginUserDTO:
+    email: str
+    password: str
+
+
+@dataclass
+class LoginResponseDTO:
+    id: str
+    email: str
+    role: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    access_token: str
