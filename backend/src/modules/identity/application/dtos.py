@@ -1,0 +1,18 @@
+from dataclasses import dataclass
+from datetime import datetime
+
+
+@dataclass
+class RegisterUserDTO:
+    email: str
+    password: str
+
+
+@dataclass
+class UserResponseDTO:
+    id: str
+    email: str
+    role: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime

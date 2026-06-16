@@ -1,6 +1,30 @@
 version: "3.8"
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-c2user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-c2pass}
+      POSTGRES_DB: ${POSTGRES_DB:-c2db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-c2user} -d ${POSTGRES_DB:-c2db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 3g
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
   backend:
     build:
       context: .
@@ -9,6 +33,9 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
     volumes:
       - ./data:/app/data
     restart: unless-stopped
@@ -17,3 +44,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+volumes:
+  postgres_data:

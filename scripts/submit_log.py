@@ -107,6 +107,10 @@ def main():
         print("[ai-log] No valid entries to submit.", file=sys.stderr)
         sys.exit(0)
 
+    claude_count = sum(1 for e in entries if e.get("tool") == "claude")
+    if claude_count:
+        print(f"[claude-log] Found {claude_count} Claude entries to submit.", file=sys.stderr)
+
     payload = json.dumps({"entries": entries}, ensure_ascii=False).encode("utf-8")
     headers = {"Content-Type": "application/json"}
     if API_KEY:
