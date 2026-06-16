@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useProjectStore } from '@/store/projectStore';
 import { useTranslation } from '@/i18n/useTranslation';
+import { LibraryTab } from './LibraryTab';
 import styles from './CenterWorkspace.module.css';
 
 type TabKey = 'library' | 'graph' | 'writing';
@@ -46,7 +47,7 @@ export function CenterWorkspace() {
 
       <div className={styles.tabContent}>
         <div style={{ display: activeTab === 'library' ? 'block' : 'none' }}>
-          <p className={styles.placeholder}>{t('tab.library')}</p>
+          <LibraryTab />
         </div>
         <div style={{ display: activeTab === 'graph' ? 'block' : 'none' }}>
           <p className={styles.placeholder}>{t('tab.graph')}</p>

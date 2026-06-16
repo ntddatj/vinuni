@@ -44,3 +44,16 @@ class UserResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+
+class SaveApiKeyRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    api_key: str = Field(alias="apiKey", min_length=1, max_length=512)
+
+    @field_validator("api_key", mode="before")
+    @classmethod
+    def strip_api_key(cls, v: object) -> object:
+        if isinstance(v, str):
+            return v.strip()
+        return v

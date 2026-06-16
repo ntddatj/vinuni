@@ -1,5 +1,17 @@
 # Deferred Work
 
+## Deferred from: code review of story 2-2-tim-kiem-bai-bao-hoc-thuat-song-song-voi-xu-ly-loi-degraded-union (2026-06-17)
+
+- **Dedup không bắt trùng chéo nguồn khi định danh rời rạc** — cùng một bài: arXiv chỉ trả `arxiv_id`, Semantic Scholar chỉ trả `DOI` (không có ArXiv externalId) → không có khóa chung nên cả hai lọt qua `_deduplicate`, bài xuất hiện 2 lần. Cần fuzzy/title matching, là tính năng lớn hơn AC #2. [backend/src/modules/search/application/use_cases.py:56-76]
+- **arXiv query-grammar injection nhẹ** — user input đưa thẳng vào `search_query=all:{query}`; người dùng có thể chèn cú pháp boolean/field-prefix của arXiv (`ti:`, `OR`, `ANDNOT`) làm đổi ngữ nghĩa truy vấn hoặc tạo query lỗi. Cần escape grammar arXiv. [backend/src/modules/search/infrastructure/arxiv_client.py:21-25]
+
+## Deferred from: code review of story 2-1-quan-ly-api-keys-ca-nhan-ma-hoa-bao-mat (2026-06-16)
+
+- **`update_test_result` no-op âm thầm khi concurrent delete** — nếu credential bị xóa giữa lúc test chạy và ghi kết quả, ORM trả `None`, method return không commit/không lỗi → kết quả test mất, UI hiện trạng thái cũ. Edge race, không chặn MVP. [backend/src/modules/identity/infrastructure/credential_repository.py]
+- **`deleteApiKey` endpoint mồ côi — không có UI** — API client `deleteApiKey` và endpoint `DELETE /user/api-keys/{provider}` đã có nhưng ApiKeysPage chỉ render Edit + Test, không có nút xóa. Nằm ngoài AC của story 2.1; cần quyết định có thêm tính năng xóa key ở story sau không. [frontend/src/features/settings/ApiKeysPage.tsx]
+- **`mask()` giải mã full plaintext mỗi lần list** — `ListApiKeysUseCase` decrypt toàn bộ key server-side chỉ để hiển thị 4 ký tự cuối, vật chất hóa secret trong RAM ở mọi request GET. Cân nhắc lưu `last4` (không nhạy cảm) tách riêng để tránh decrypt khi list. Đổi thiết kế lưu trữ. [backend/src/modules/identity/application/use_cases.py:138]
+- **`TestApiKeyUseCase` hardcode `ChatGoogleGenerativeAI` — không mock được (Dev Notes #8)** — `use_cases.py:167-168` khởi tạo `ChatGoogleGenerativeAI` trực tiếp trong use case nên không unit-test được nếu không có network/thư viện thật. Khớp code mẫu trong spec nên không phải bug runtime; nên refactor inject một LLM client interface để test connection có thể mock. [backend/src/modules/identity/application/use_cases.py:167]
+
 ## Deferred from: code review of story 1-5-giao-dien-3-cot-bo-chuyen-doi-ngon-ngu-chu-de (2026-06-16)
 
 - `activeProjectId` đọc từ `?projectId` không validate so với danh sách 10 dự án đã load → URL trỏ project #11+/đã xóa thì tiêu đề cột giữa âm thầm về fallback "Chọn một dự án", không có phản hồi "không tìm thấy". Cần quyết định UX (validate + toast, hay load riêng project đó). [frontend/src/features/dashboard/DashboardPage.tsx:142-148]

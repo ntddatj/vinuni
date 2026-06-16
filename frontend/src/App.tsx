@@ -5,6 +5,7 @@ import { RegisterPage } from '@/features/auth/RegisterPage';
 import { OnboardingPage } from '@/features/onboarding/OnboardingPage';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { ProjectsPage } from '@/features/workspace/ProjectsPage';
+import { ApiKeysPage } from '@/features/settings/ApiKeysPage';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 function App() {
@@ -35,6 +36,14 @@ function App() {
           element={
             <ProtectedRoute>
               <ProjectsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings/api-keys"
+          element={
+            <ProtectedRoute>
+              <ApiKeysPage />
             </ProtectedRoute>
           }
         />

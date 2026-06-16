@@ -31,6 +31,13 @@ export function Header() {
             ⚙️ {t('header.settings')}
           </button>
         )}
+        <button
+          className={styles.iconButton}
+          type="button"
+          onClick={() => navigate('/settings/api-keys')}
+        >
+          {t('header.apiKeys')}
+        </button>
         <button className={styles.toggle} type="button" onClick={toggleTheme}>
           {theme === 'light' ? '🌙' : '☀️'}
         </button>

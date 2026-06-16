@@ -1,8 +1,11 @@
+import logging
 from functools import lru_cache
 from typing import Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -38,6 +41,22 @@ class Settings(BaseSettings):
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
+
+    # AI / LLM
+    gemini_api_key: str = ""
+    fernet_secret_key: str = ""
+
+    @field_validator("fernet_secret_key")
+    @classmethod
+    def warn_if_fernet_key_empty(cls, v: str, info) -> str:
+        if not v:
+            app_env = (info.data or {}).get("app_env", "development")
+            if app_env == "production":
+                raise ValueError("FERNET_SECRET_KEY phải được cấu hình trong môi trường production")
+            logger.warning(
+                "FERNET_SECRET_KEY chưa được cấu hình. Dùng ephemeral key cho dev/test."
+            )
+        return v
 
 
 @lru_cache

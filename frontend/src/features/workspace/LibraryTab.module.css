@@ -1,0 +1,181 @@
+.container {
+  width: 100%;
+  padding-top: 16px;
+}
+
+.searchBar {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+}
+
+.searchInput {
+  flex: 1;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--rounded-md);
+  padding: 8px 12px;
+  font-size: 14px;
+  background: var(--surface-base);
+  color: var(--ink-primary);
+  outline: none;
+}
+
+.searchInput:focus {
+  border-color: var(--accent-blue);
+}
+
+.searchInput::placeholder {
+  color: var(--ink-secondary);
+}
+
+.searchButton {
+  background: var(--accent-blue);
+  color: white;
+  border: none;
+  border-radius: var(--rounded-md);
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.searchButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.searchButton:not(:disabled):hover {
+  opacity: 0.9;
+}
+
+.loading {
+  text-align: center;
+  color: var(--ink-secondary);
+  padding: 32px 0;
+  font-size: 14px;
+}
+
+.empty {
+  text-align: center;
+  color: var(--ink-secondary);
+  padding: 48px 0;
+  font-size: 14px;
+}
+
+.resultList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 16px;
+}
+
+.card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--rounded-md);
+  padding: 16px;
+}
+
+.cardHeader {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.paperTitle {
+  color: var(--accent-blue);
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  flex: 1;
+}
+
+.paperTitle:hover {
+  text-decoration: underline;
+}
+
+.badges {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.sourceBadge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: var(--rounded-sm);
+  font-weight: 500;
+}
+
+.sourceBadge[data-source='arxiv'] {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.sourceBadge[data-source='semantic_scholar'] {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.pdfBadge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: var(--rounded-sm);
+  background: var(--state-success);
+  color: white;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.pdfBadge:hover {
+  opacity: 0.9;
+}
+
+.cardMeta {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--ink-secondary);
+  margin-top: 6px;
+}
+
+.authors {
+  flex: 1;
+}
+
+.year {
+  flex-shrink: 0;
+}
+
+.abstract {
+  font-size: 13px;
+  color: var(--ink-secondary);
+  margin-top: 8px;
+  margin-bottom: 0;
+  line-height: 1.5;
+}
+
+.cardActions {
+  margin-top: 12px;
+}
+
+.addButton {
+  font-size: 13px;
+  padding: 4px 12px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--rounded-sm);
+  background: var(--surface-base);
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+
+.addButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

@@ -1,0 +1,180 @@
+.page {
+  padding: 32px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--ink-primary);
+  margin: 0 0 8px;
+}
+
+.subtitle {
+  font-size: 0.9rem;
+  color: var(--ink-secondary);
+  margin: 0 0 32px;
+}
+
+.loading {
+  color: var(--ink-secondary);
+  font-size: 0.9rem;
+  padding: 16px 0;
+}
+
+.providerList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.providerCard {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.providerName {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink-primary);
+}
+
+.statusBadge {
+  font-size: 0.8rem;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: var(--surface-base);
+  color: var(--ink-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+.displayRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.maskedKey {
+  font-family: monospace;
+  font-size: 0.95rem;
+  color: var(--ink-primary);
+  flex: 1;
+  letter-spacing: 0.05em;
+}
+
+.editBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.editBtn:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.06));
+}
+
+.editRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.keyInput {
+  flex: 1;
+  min-width: 200px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--surface-base);
+  color: var(--ink-primary);
+  font-size: 0.9rem;
+}
+
+.keyInput:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+}
+
+.saveBtn {
+  padding: 8px 16px;
+  background: var(--accent-blue);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.saveBtn:hover {
+  opacity: 0.9;
+}
+
+.cancelBtn {
+  padding: 8px 14px;
+  background: none;
+  color: var(--ink-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.cancelBtn:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.06));
+}
+
+.testBtn {
+  align-self: flex-start;
+  padding: 7px 16px;
+  background: none;
+  color: var(--accent-blue);
+  border: 1px solid var(--accent-blue);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+
+.testBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+}
+
+.testBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.lastTested {
+  font-size: 0.78rem;
+  color: var(--ink-secondary);
+}
+
+.inlineError {
+  font-size: 0.8rem;
+  color: var(--color-error, #dc2626);
+}
+
+.saveBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
