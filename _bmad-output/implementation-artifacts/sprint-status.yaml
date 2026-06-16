@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-15T17:36:00+07:00
-last_updated: 2026-06-16T21:45:00+07:00
+last_updated: 2026-06-16T22:20:00+07:00
 project: C2-App-053
 project_key: NOKEY
 tracking_system: file-system
@@ -48,6 +48,7 @@ development_status:
   1-3-quy-trinh-onboarding-khoi-tao-du-an-dau-tien: done
   1-4-crud-du-an-nghien-cuu-left-sidebar-dieu-huong: done
   1-5-giao-dien-3-cot-bo-chuyen-doi-ngon-ngu-chu-de: done
+  1-6-trang-quan-ly-toan-bo-du-an-dang-bang: done
   epic-1-retrospective: optional
 
   epic-2: backlog

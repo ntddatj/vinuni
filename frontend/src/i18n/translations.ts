@@ -18,6 +18,18 @@ export const translations = {
   'sidebar.delete': { vi: 'Xóa', en: 'Delete' },
   'workspace.selectProject': { vi: 'Chọn một dự án', en: 'Select a project' },
   'chat.comingSoon': { vi: 'Chat sẽ được kích hoạt ở Epic 3.', en: 'Chat will be available in Epic 3.' },
+  'projects.title': { vi: 'Quản lý Dự án', en: 'Project Management' },
+  'projects.createButton': { vi: '+ Tạo dự án mới', en: '+ New Project' },
+  'projects.searchPlaceholder': { vi: 'Tìm kiếm theo tên dự án...', en: 'Search by project name...' },
+  'projects.colName': { vi: 'Tên dự án', en: 'Project Name' },
+  'projects.colDesc': { vi: 'Mô tả', en: 'Description' },
+  'projects.colDate': { vi: 'Ngày tạo', en: 'Date Created' },
+  'projects.colAction': { vi: 'Hành động', en: 'Action' },
+  'projects.empty': { vi: 'Chưa có dự án nào. Hãy tạo dự án đầu tiên!', en: 'No projects yet. Create your first one!' },
+  'projects.noResults': { vi: 'Không tìm thấy dự án nào.', en: 'No projects found.' },
+  'projects.loading': { vi: 'Đang tải...', en: 'Loading...' },
+  'projects.pagePrev': { vi: '← Trước', en: '← Prev' },
+  'projects.pageNext': { vi: 'Tiếp →', en: 'Next →' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

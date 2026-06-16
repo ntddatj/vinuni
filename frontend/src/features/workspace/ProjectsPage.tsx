@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { getProjects } from '@/api/projects';
 import { getErrorMessage } from '@/api/errors';
+import { useTranslation } from '@/i18n/useTranslation';
 import type { ProjectResponse } from '@/types/project';
 import { CreateProjectModal } from './CreateProjectModal';
 import { DeleteProjectModal } from './DeleteProjectModal';
@@ -9,11 +10,20 @@ import styles from './ProjectsPage.module.css';
 
 const PAGE_SIZE = 10;
 
+function formatDate(dateStr: string | null | undefined, locale: string): string {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString(locale);
+}
+
 export function ProjectsPage() {
+  const { t, lang } = useTranslation();
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(0);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -31,9 +41,16 @@ export function ProjectsPage() {
     }
   }, []);
 
+  // Debounce: delay search 300ms
   useEffect(() => {
-    loadProjects(page, searchQuery);
-  }, [page, searchQuery, loadProjects]);
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Load khi page hoặc debouncedSearch thay đổi
+  useEffect(() => {
+    loadProjects(page, debouncedSearch);
+  }, [page, debouncedSearch, loadProjects]);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
@@ -42,37 +59,47 @@ export function ProjectsPage() {
     setPage(0);
   }
 
+  const handleDeleteSuccess = useCallback(() => {
+    if (projects.length === 1 && page > 0) {
+      setPage((p) => p - 1);
+    } else {
+      loadProjects(page, debouncedSearch);
+    }
+  }, [projects.length, page, debouncedSearch, loadProjects]);
+
+  const locale = lang === 'vi' ? 'vi-VN' : 'en-US';
+
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.title}>Quản lý Dự án</h1>
+        <h1 className={styles.title}>{t('projects.title')}</h1>
         <button className={styles.createButton} onClick={() => setShowCreateModal(true)}>
-          + Tạo dự án mới
+          {t('projects.createButton')}
         </button>
       </div>
 
       <input
         className={styles.searchInput}
         type="search"
-        placeholder="Tìm kiếm theo tên dự án..."
+        placeholder={t('projects.searchPlaceholder')}
         value={searchQuery}
         onChange={handleSearch}
       />
 
       {isLoading ? (
-        <div className={styles.empty}>Đang tải...</div>
+        <div className={styles.empty}>{t('projects.loading')}</div>
       ) : projects.length === 0 ? (
         <div className={styles.empty}>
-          {searchQuery ? 'Không tìm thấy dự án nào.' : 'Chưa có dự án nào. Hãy tạo dự án đầu tiên!'}
+          {debouncedSearch ? t('projects.noResults') : t('projects.empty')}
         </div>
       ) : (
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Tên dự án</th>
-              <th>Mô tả</th>
-              <th>Ngày tạo</th>
-              <th>Hành động</th>
+              <th>{t('projects.colName')}</th>
+              <th>{t('projects.colDesc')}</th>
+              <th>{t('projects.colDate')}</th>
+              <th>{t('projects.colAction')}</th>
             </tr>
           </thead>
           <tbody>
@@ -80,13 +107,15 @@ export function ProjectsPage() {
               <tr key={project.id}>
                 <td>{project.name}</td>
                 <td>{project.description ?? '—'}</td>
-                <td>{new Date(project.createdAt).toLocaleDateString('vi-VN')}</td>
+                <td>{formatDate(project.createdAt, locale)}</td>
                 <td>
                   <button
                     className={styles.deleteBtn}
                     onClick={() => setDeleteTarget({ id: project.id, name: project.name })}
+                    title={t('sidebar.delete')}
+                    aria-label={t('sidebar.delete')}
                   >
-                    Xóa
+                    🗑
                   </button>
                 </td>
               </tr>
@@ -102,17 +131,17 @@ export function ProjectsPage() {
             disabled={page === 0}
             onClick={() => setPage((p) => p - 1)}
           >
-            ← Trước
+            {t('projects.pagePrev')}
           </button>
           <span className={styles.pageInfo}>
-            Trang {page + 1} / {totalPages}
+            {page + 1} / {totalPages}
           </span>
           <button
             className={styles.pageBtn}
             disabled={page >= totalPages - 1}
             onClick={() => setPage((p) => p + 1)}
           >
-            Tiếp →
+            {t('projects.pageNext')}
           </button>
         </div>
       )}
@@ -120,7 +149,7 @@ export function ProjectsPage() {
       {showCreateModal && (
         <CreateProjectModal
           onClose={() => setShowCreateModal(false)}
-          onSuccess={() => loadProjects(page, searchQuery)}
+          onSuccess={() => loadProjects(page, debouncedSearch)}
         />
       )}
       {deleteTarget && (
@@ -128,7 +157,7 @@ export function ProjectsPage() {
           projectId={deleteTarget.id}
           projectName={deleteTarget.name}
           onClose={() => setDeleteTarget(null)}
-          onSuccess={() => loadProjects(page, searchQuery)}
+          onSuccess={handleDeleteSuccess}
         />
       )}
     </div>
