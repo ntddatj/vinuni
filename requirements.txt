@@ -27,6 +27,11 @@ arq>=0.25.0
 pgvector>=0.3.6
 sse-starlette>=2.1.0
 
+# LangGraph & Chat (Story 3.1)
+langgraph>=0.2.0
+langgraph-checkpoint-postgres>=2.0.0
+psycopg[binary,pool]>=3.1.0
+
 # Dev tools
 ruff>=0.8.0
 pytest>=8.0.0

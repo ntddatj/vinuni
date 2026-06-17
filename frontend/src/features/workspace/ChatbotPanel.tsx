@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useChatStore } from '@/store/chatStore';
+import { useProjectStore } from '@/store/projectStore';
+import { createThread, sendMessage } from '@/api/chat';
+import { ChatHistoryPopover } from './ChatHistoryPopover';
 import styles from './ChatbotPanel.module.css';
+import { toast } from 'sonner';
 
 const DEFAULT_WIDTH = 25;
 const MIN_WIDTH = 20;
@@ -10,9 +15,53 @@ export function ChatbotPanel() {
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const [collapsed, setCollapsed] = useState(false);
   const [lastWidth, setLastWidth] = useState(DEFAULT_WIDTH);
+  const [showHistory, setShowHistory] = useState(false);
+  const [inputValue, setInputValue] = useState('');
   const isDragging = useRef(false);
   const cleanupDragRef = useRef<(() => void) | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
   const { t } = useTranslation();
+
+  const activeProjectId = useProjectStore((s) => s.activeProjectId);
+  const {
+    messages,
+    activeThreadId,
+    isStreaming,
+    streamingContent,
+    isLoadingMessages,
+    setActiveThreadId,
+    setMessages,
+    setStreaming,
+    appendChunk,
+    beginStreaming,
+    commitStreamingMessage,
+    addOptimisticUserMessage,
+    removeMessage,
+    reset,
+  } = useChatStore();
+
+  function closeStream() {
+    eventSourceRef.current?.close();
+    eventSourceRef.current = null;
+  }
+
+  // Reset chat when project changes — đóng luôn stream đang chạy để tránh
+  // chunk của project cũ chèn vào hội thoại mới.
+  useEffect(() => {
+    closeStream();
+    reset();
+  }, [activeProjectId]);
+
+  // Đóng EventSource khi unmount để tránh leak kết nối.
+  useEffect(() => {
+    return () => closeStream();
+  }, []);
+
+  // Auto-scroll to bottom on new messages or streaming chunks
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, streamingContent]);
 
   function handleMouseDown(e: React.MouseEvent) {
     e.preventDefault();
@@ -61,6 +110,63 @@ export function ChatbotPanel() {
     }
   }
 
+  async function handleNewChat() {
+    if (!activeProjectId) return;
+    try {
+      const thread = await createThread(activeProjectId);
+      setActiveThreadId(thread.id);
+      setMessages([]);
+    } catch {
+      toast.error('Không thể tạo cuộc trò chuyện mới');
+    }
+  }
+
+  async function handleSend() {
+    if (!inputValue.trim() || !activeThreadId || isStreaming) return;
+
+    const text = inputValue.trim();
+    const optimisticId = addOptimisticUserMessage(text);
+    setInputValue('');
+    beginStreaming(); // isStreaming=true + reset streamingContent
+
+    let runId: string;
+    try {
+      ({ runId } = await sendMessage(activeThreadId, text));
+    } catch {
+      // POST thất bại → gỡ optimistic message để không hiển thị tin chưa gửi được.
+      removeMessage(optimisticId);
+      setStreaming(false);
+      toast.error('Không thể gửi tin nhắn');
+      return;
+    }
+
+    closeStream(); // đảm bảo không có stream cũ còn mở
+    const es = new EventSource(`/api/chat/stream?runId=${runId}`, { withCredentials: true });
+    eventSourceRef.current = es;
+
+    es.onmessage = (e) => {
+      let data: { event?: string; chunk?: string };
+      try {
+        data = JSON.parse(e.data);
+      } catch {
+        return; // bỏ qua frame không hợp lệ (vd: keep-alive comment)
+      }
+      if (data.event === 'done') {
+        commitStreamingMessage();
+        closeStream();
+      } else if (typeof data.chunk === 'string') {
+        appendChunk(data.chunk);
+      }
+    };
+
+    es.onerror = () => {
+      if (es.readyState === EventSource.CLOSED) return;
+      setStreaming(false);
+      closeStream();
+      toast.error('Lỗi kết nối stream');
+    };
+  }
+
   useEffect(() => {
     return () => {
       cleanupDragRef.current?.();
@@ -92,21 +198,83 @@ export function ChatbotPanel() {
         />
 
         <div className={styles.content}>
-          <div className={styles.header}>
+          <div className={styles.chatHeader}>
             <h3 className={styles.title}>{t('chat.title')}</h3>
+            <div className={styles.actions}>
+              <button
+                onClick={() => setShowHistory(!showHistory)}
+                title={t('chat.historyBtn')}
+                type="button"
+                disabled={!activeProjectId}
+              >
+                🕐
+              </button>
+              <button
+                onClick={handleNewChat}
+                title={t('chat.newChatBtn')}
+                type="button"
+                disabled={!activeProjectId}
+              >
+                ✏️
+              </button>
+            </div>
+            {showHistory && activeProjectId && (
+              <ChatHistoryPopover
+                projectId={activeProjectId}
+                onClose={() => setShowHistory(false)}
+              />
+            )}
           </div>
 
           <div className={styles.messages}>
-            <p className={styles.emptyHint}>{t('chat.comingSoon')}</p>
+            {!activeProjectId && <p className={styles.hint}>{t('chat.noProject')}</p>}
+            {isLoadingMessages && <p className={styles.hint}>Đang tải tin nhắn...</p>}
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`${styles.bubble} ${msg.role === 'user' ? styles.userBubble : styles.aiBubble}`}
+              >
+                {msg.content}
+              </div>
+            ))}
+            {isStreaming && (
+              <div className={`${styles.bubble} ${styles.aiBubble}`}>
+                {streamingContent === '' ? (
+                  <span className={styles.thinking}>{t('chat.thinking')}</span>
+                ) : (
+                  <>
+                    {streamingContent}
+                    <span className={styles.cursor}>▋</span>
+                  </>
+                )}
+              </div>
+            )}
+            <div ref={messagesEndRef} />
           </div>
 
           <div className={styles.inputArea}>
             <input
               className={styles.input}
-              placeholder={t('chat.placeholder')}
-              disabled
+              placeholder={activeProjectId ? t('chat.placeholder') : t('chat.inputDisabled')}
+              disabled={!activeProjectId || isStreaming}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
               type="text"
             />
+            <button
+              className={styles.sendBtn}
+              onClick={handleSend}
+              disabled={!activeProjectId || isStreaming || !inputValue.trim()}
+              type="button"
+            >
+              {t('chat.sendBtn')}
+            </button>
           </div>
         </div>
       </div>

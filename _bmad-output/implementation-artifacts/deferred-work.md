@@ -1,5 +1,19 @@
 # Deferred Work
 
+## Deferred from: code review of story-3.2 (2026-06-17)
+
+- **In-memory `run_registry` không hoạt động đa worker** — `send_message` (tạo run+queue) và `GET /stream` (đọc queue) là 2 request riêng; với gunicorn/uvicorn workers > 1 chúng có thể rơi vào process khác nhau → `/stream` không thấy run_id → 404, streaming chết. Spec đã ghi nhận: single-server MVP, chuyển sang Redis Pub/Sub khi scale-out. [backend/src/modules/orchestrator/infrastructure/run_registry.py]
+- **TOCTOU 404 với answer ngắn/rỗng** — background task đẩy hết ký tự rồi `delete_run` trong `finally`; nếu answer rất ngắn/rỗng task có thể hoàn tất + xoá run trước khi client kịp mở `GET /stream` → 404, mất câu trả lời. Mock answer hiện ≈80 ký tự × 50ms (~4s) nên an toàn; cần xử lý (giữ queue tới khi consume / bắt đầu stream khi consumer connect) nếu answer có thể ngắn. [backend/src/modules/orchestrator/application/use_cases.py:_stream_graph_to_queue]
+- **Gửi đồng thời cùng thread không serialize ở backend** — 2 tab/2 POST liên tiếp cùng `thread_id` chạy `graph.ainvoke` song song với cùng checkpoint config → race ghi checkpoint LangGraph + history lệch. Frontend đã chặn bằng `isStreaming` nên single-tab an toàn; cần per-thread lock nếu mở đa phiên. [backend/src/modules/orchestrator/application/use_cases.py:SendMessageUseCase]
+- **`POST /invoke` không persist message** — endpoint AC#5 (mock invoke) chỉ chạy graph + trả answer, không lưu user/assistant vào `chat_messages`; nếu sau này frontend dùng `/invoke` thì history sẽ mất im lặng. Hiện frontend chỉ dùng `send_message` (SSE) nên dormant. [backend/src/modules/orchestrator/application/use_cases.py:InvokeUseCase]
+
+## Deferred from: code review of story 3-1-dinh-tuyen-quan-ly-phien-chat-voi-postgressaver (2026-06-17)
+
+- **PostgresSaver singleton lưu context manager chưa mở** — `AsyncPostgresSaver.from_conn_string()` trả về async context manager, không phải saver instance; `_checkpointer` được gán object chưa `__aenter__` → consumer tương lai sẽ crash. Deferred sang **story 3.3**: AC#5 (tạo bảng checkpoint lúc startup) hiện vẫn đúng vì `setup()` chạy trong `async with`, và `get_postgres_checkpointer()` chưa có caller. Quyết định vòng đời connection (AsyncConnectionPool giữ mở / enter CM trong lifespan và exit khi shutdown) sẽ có ngữ cảnh tốt hơn khi 3.3 thực sự dùng checkpointer. [backend/src/modules/orchestrator/infrastructure/postgres_checkpointer.py:16-28]
+- **Cột `role` (chat_messages) không có CHECK/enum constraint** — chỉ có comment `# 'user' | 'assistant'`, DB nhận bất kỳ string ≤50 ký tự. Chưa có write-path message ở story 3.1 (gửi message là story 3.4) nên latent; khớp spec verbatim. [backend/src/modules/orchestrator/infrastructure/orm_models.py, backend/alembic/versions/008_create_chat_tables.py]
+- **`updated_at` chỉ có `onupdate=func.now()` ở ORM, migration không tạo DB trigger** — UPDATE qua raw SQL sẽ không bump `updated_at`; `list_by_project` order theo cột này. Nhất quán với pattern workspace ORM hiện có nên giữ nguyên. [backend/src/modules/orchestrator/infrastructure/orm_models.py ChatThreadORM]
+- **Index trùng phần tiền tố** — `idx_chat_threads_project_id (project_id)` + `idx_chat_threads_project_user (project_id, user_id)`; composite đã cover query lọc theo project. Khớp spec verbatim, chi phí ghi/lưu nhỏ. [backend/alembic/versions/008_create_chat_tables.py]
+
 ## Deferred from: code review of story 2-6-kiem-soat-gioi-han-so-luong-tai-lieu-admin-dat-ra (2026-06-17)
 
 - **`create_all` (dev path) không seed `system_settings`** — chỉ migration 007 seed (MAX_PAPERS_PER_PROJECT=15, BROAD_QUERY_THRESHOLD=50); đường `Base.metadata.create_all` của lifespan tạo bảng rỗng. Trên DB dev mới, `GET /admin/settings` trả list rỗng → trang Admin hiển thị mặc định 15/50 và chỉ tạo row sau lần Save đầu. Giá trị vẫn áp dụng đúng nhờ fallback trong `get_setting/get_max_papers_limit`; tác động thấp. [backend/main.py:35]

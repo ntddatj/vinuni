@@ -14,6 +14,12 @@ from backend.src.modules.ingestion.infrastructure.chunk_orm_models import (  # n
 )
 from backend.src.modules.ingestion.infrastructure.orm_models import PaperORM, UploadedFileORM  # noqa: F401
 from backend.src.modules.ingestion.presentation.router import router as ingestion_router
+from backend.src.modules.orchestrator.infrastructure.orm_models import ChatMessageORM, ChatThreadORM  # noqa: F401
+from backend.src.modules.orchestrator.infrastructure.postgres_checkpointer import (
+    close_postgres_checkpointer,
+    setup_postgres_checkpointer,
+)
+from backend.src.modules.orchestrator.presentation.router import router as orchestrator_router
 from backend.src.modules.search.presentation.router import router as search_router
 from backend.src.modules.workspace.infrastructure.orm_models import ProjectORM, SyncOutboxORM  # noqa: F401
 from backend.src.modules.workspace.presentation.router import router as workspace_router
@@ -33,7 +39,9 @@ async def lifespan(app: FastAPI):
         # (Migration 006 tạo extension này; đường dev create_all phải tự lo để không vỡ startup.)
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
+    await setup_postgres_checkpointer()
     yield
+    await close_postgres_checkpointer()
     await engine.dispose()
 
 
@@ -57,6 +65,7 @@ app.include_router(identity_router, prefix="/api")
 app.include_router(workspace_router, prefix="/api")
 app.include_router(search_router, prefix="/api")
 app.include_router(ingestion_router, prefix="/api")
+app.include_router(orchestrator_router, prefix="/api")
 register_error_handlers(app)
 
 

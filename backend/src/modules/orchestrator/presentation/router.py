@@ -1,0 +1,161 @@
+import json
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
+
+from backend.src.modules.identity.domain.entities import User
+from backend.src.modules.identity.infrastructure.auth_dependencies import get_current_user
+from backend.src.modules.orchestrator.application.dtos import (
+    CreateThreadDTO,
+    GetThreadMessagesDTO,
+    InvokeDTO,
+    ListThreadsDTO,
+    SendMessageDTO,
+)
+from backend.src.modules.orchestrator.application.use_cases import (
+    CreateThreadUseCase,
+    GetThreadMessagesUseCase,
+    InvokeUseCase,
+    ListThreadsUseCase,
+    SendMessageUseCase,
+)
+from backend.src.modules.orchestrator.domain.exceptions import ThreadAccessDeniedError, ThreadNotFoundError
+from backend.src.modules.orchestrator.domain.repositories import ChatThreadRepository
+from backend.src.modules.orchestrator.infrastructure.dependencies import get_thread_repository
+from backend.src.modules.orchestrator.infrastructure.run_registry import get_run_owner, get_run_queue
+from backend.src.modules.orchestrator.presentation.schemas import (
+    ChatMessageResponse,
+    ChatThreadResponse,
+    CreateThreadRequest,
+    InvokeRequest,
+    InvokeResponse,
+    SendMessageRequest,
+    SendMessageResponse,
+)
+from backend.src.modules.workspace.domain.exceptions import ProjectAccessDeniedError, ProjectNotFoundError
+from backend.src.modules.workspace.domain.repositories import ProjectRepository
+from backend.src.modules.workspace.infrastructure.dependencies import get_project_repository
+
+router = APIRouter(prefix="/chat", tags=["chat"])
+
+
+@router.post("/threads", response_model=ChatThreadResponse, status_code=201)
+async def create_thread(
+    request: CreateThreadRequest,
+    current_user: User = Depends(get_current_user),
+    repo: ChatThreadRepository = Depends(get_thread_repository),
+    project_repo: ProjectRepository = Depends(get_project_repository),
+) -> ChatThreadResponse:
+    use_case = CreateThreadUseCase(repo, project_repo)
+    try:
+        result = await use_case.execute(
+            CreateThreadDTO(user_id=current_user.id, project_id=str(request.project_id), title=request.title)
+        )
+    except ProjectNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dự án không tồn tại") from e
+    except ProjectAccessDeniedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Không có quyền truy cập") from e
+    return ChatThreadResponse.model_validate(result, from_attributes=True)
+
+
+@router.get("/threads", response_model=list[ChatThreadResponse])
+async def list_threads(
+    project_id: UUID = Query(..., alias="projectId"),
+    current_user: User = Depends(get_current_user),
+    repo: ChatThreadRepository = Depends(get_thread_repository),
+    project_repo: ProjectRepository = Depends(get_project_repository),
+) -> list[ChatThreadResponse]:
+    use_case = ListThreadsUseCase(repo, project_repo)
+    try:
+        results = await use_case.execute(ListThreadsDTO(user_id=current_user.id, project_id=str(project_id)))
+    except ProjectNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dự án không tồn tại") from e
+    except ProjectAccessDeniedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Không có quyền truy cập") from e
+    return [ChatThreadResponse.model_validate(t, from_attributes=True) for t in results]
+
+
+@router.get("/threads/{thread_id}/messages", response_model=list[ChatMessageResponse])
+async def get_thread_messages(
+    thread_id: UUID,
+    current_user: User = Depends(get_current_user),
+    repo: ChatThreadRepository = Depends(get_thread_repository),
+) -> list[ChatMessageResponse]:
+    use_case = GetThreadMessagesUseCase(repo)
+    try:
+        messages = await use_case.execute(
+            GetThreadMessagesDTO(thread_id=str(thread_id), requesting_user_id=current_user.id)
+        )
+    except ThreadNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ThreadAccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+    return [ChatMessageResponse.model_validate(m, from_attributes=True) for m in messages]
+
+
+@router.post("/invoke", response_model=InvokeResponse)
+async def invoke_chat(
+    request: InvokeRequest,
+    current_user: User = Depends(get_current_user),
+    repo: ChatThreadRepository = Depends(get_thread_repository),
+) -> InvokeResponse:
+    use_case = InvokeUseCase(repo)
+    try:
+        answer = await use_case.execute(
+            InvokeDTO(thread_id=str(request.thread_id), message=request.message, user_id=current_user.id)
+        )
+    except ThreadNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ThreadAccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+    return InvokeResponse(answer=answer, thread_id=str(request.thread_id))
+
+
+@router.post("/threads/{thread_id}/messages", response_model=SendMessageResponse, status_code=202)
+async def send_message(
+    thread_id: UUID,
+    request: SendMessageRequest,
+    current_user: User = Depends(get_current_user),
+    repo: ChatThreadRepository = Depends(get_thread_repository),
+) -> SendMessageResponse:
+    use_case = SendMessageUseCase(repo)
+    try:
+        run_id = await use_case.execute(
+            SendMessageDTO(thread_id=str(thread_id), message=request.message, user_id=current_user.id)
+        )
+    except ThreadNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ThreadAccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+    return SendMessageResponse(run_id=run_id)
+
+
+@router.get("/stream")
+async def stream_chat(
+    run_id: str = Query(..., alias="runId"),
+    current_user: User = Depends(get_current_user),
+):
+    queue = get_run_queue(run_id)
+    if queue is None:
+        raise HTTPException(status_code=404, detail=f"Run {run_id} không tồn tại hoặc đã hoàn thành")
+    if get_run_owner(run_id) != current_user.id:
+        raise HTTPException(status_code=403, detail="Không có quyền truy cập run này")
+
+    async def event_generator():
+        while True:
+            item = await queue.get()
+            if item is None:
+                yield f"data: {json.dumps({'event': 'done'})}\n\n"
+                break
+            yield f"data: {json.dumps({'chunk': item})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
