@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-15T17:36:00+07:00
-last_updated: 2026-06-17T20:00:00+07:00
+last_updated: 2026-06-17T23:30:00+07:00
 project: C2-App-053
 project_key: NOKEY
 tracking_system: file-system
@@ -63,7 +63,7 @@ development_status:
   epic-3: in-progress
   3-1-dinh-tuyen-quan-ly-phien-chat-voi-postgressaver: done
   3-2-chat-rag-stream-ket-qua-qua-server-sent-events-sse: done
-  3-3-chatbot-dinh-huong-dua-tren-trang-thai-du-an: backlog
+  3-3-chatbot-dinh-huong-dua-tren-trang-thai-du-an: done
   3-4-citation-guardrail-node-chong-trich-dan-ao: backlog
   3-5-giao-dien-tuong-tac-the-trich-dan: backlog
   epic-3-retrospective: optional

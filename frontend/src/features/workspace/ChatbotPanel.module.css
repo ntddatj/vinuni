@@ -201,3 +201,27 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 12px 2px;
+}
+
+.suggestionPill {
+  padding: 4px 10px;
+  background: none;
+  border: 1px solid var(--accent-blue);
+  border-radius: 12px;
+  color: var(--accent-blue);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.suggestionPill:hover {
+  background: var(--accent-blue);
+  color: white;
+}

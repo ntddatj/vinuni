@@ -58,3 +58,16 @@ class SendMessageRequest(BaseModel):
 class SendMessageResponse(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
     run_id: str
+
+
+class GetSuggestionsRequest(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+    active_tab: str = Field(..., description="Tab đang active: library | graph | writing")
+    document_count: int = Field(..., ge=0)
+    has_draft: bool = False
+
+
+class SuggestionItemResponse(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+    label: str
+    action_key: str

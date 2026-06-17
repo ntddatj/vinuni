@@ -6,6 +6,7 @@ import { addPaperFromSearch } from '@/api/ingestion';
 import { searchPapers } from '@/api/search';
 import type { TranslationKey } from '@/i18n/translations';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useWorkspaceStore } from '@/store/workspaceStore';
 import type { ProjectPaper } from '@/types/document';
 import type { PaperResult, SearchResponse } from '@/types/search';
 import { DocumentList } from './DocumentList';
@@ -19,10 +20,12 @@ interface LibraryTabProps {
 
 export function LibraryTab({ projectId }: LibraryTabProps) {
   const { t } = useTranslation();
+  const isUploadModalOpen = useWorkspaceStore((s) => s.isUploadModalOpen);
+  const setUploadModalOpen = useWorkspaceStore((s) => s.setUploadModalOpen);
+  const setDocumentCount = useWorkspaceStore((s) => s.setDocumentCount);
   const [query, setQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<SearchResponse | null>(null);
-  const [showUpload, setShowUpload] = useState(false);
   // Theo dõi NHIỀU tài liệu đang ingest song song (upload + add-from-search liên tiếp),
   // tránh việc tài liệu thêm sau ghi đè mất theo dõi tài liệu trước.
   const [processingDocumentIds, setProcessingDocumentIds] = useState<string[]>([]);
@@ -31,6 +34,18 @@ export function LibraryTab({ projectId }: LibraryTabProps) {
   const [papers, setPapers] = useState<ProjectPaper[]>([]);
   const [maxPapers, setMaxPapers] = useState(15);
   const searchIdRef = useRef(0);
+
+  useEffect(() => {
+    setDocumentCount(papers.length);
+  }, [papers.length, setDocumentCount]);
+
+  // Reset trạng thái theo project khi đổi project — tránh documentCount và
+  // upload modal của project cũ rò rỉ sang project mới (suggestions sai context,
+  // modal upload bật nhầm). DocumentList sẽ nạp lại papers cho project mới.
+  useEffect(() => {
+    setPapers([]);
+    setUploadModalOpen(false);
+  }, [projectId, setUploadModalOpen]);
 
   useEffect(() => {
     getPublicSettings()
@@ -193,7 +208,7 @@ export function LibraryTab({ projectId }: LibraryTabProps) {
           <button
             type="button"
             className={styles.uploadButton}
-            onClick={() => setShowUpload(true)}
+            onClick={() => setUploadModalOpen(true)}
             disabled={isAtLimit}
             title={isAtLimit ? t('library.uploadDisabledLimit') : undefined}
           >
@@ -208,12 +223,12 @@ export function LibraryTab({ projectId }: LibraryTabProps) {
         </div>
       )}
 
-      {showUpload && projectId && (
+      {isUploadModalOpen && projectId && (
         <UploadModal
           projectId={projectId}
-          onClose={() => setShowUpload(false)}
+          onClose={() => setUploadModalOpen(false)}
           onSuccess={(documentId) => {
-            setShowUpload(false);
+            setUploadModalOpen(false);
             startProcessing(documentId);
           }}
         />

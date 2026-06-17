@@ -1,11 +1,13 @@
 import asyncio
 import logging
 import uuid
+from dataclasses import dataclass
 
 from langchain_core.messages import HumanMessage
 
 from backend.src.modules.orchestrator.application.dtos import (
     CreateThreadDTO,
+    GetSuggestionsDTO,
     GetThreadMessagesDTO,
     InvokeDTO,
     ListThreadsDTO,
@@ -129,6 +131,37 @@ class SendMessageUseCase:
         _background_tasks.add(task)
         task.add_done_callback(_background_tasks.discard)
         return run_id
+
+
+@dataclass
+class SuggestionItem:
+    label: str
+    action_key: str
+
+
+class GetSuggestionsUseCase:
+    """AC#1, #2: Trả về danh sách gợi ý hành động dựa trên trạng thái dự án.
+    Mock LLM adapter — logic thuần Python, không gọi vector DB hay LLM thật.
+    """
+
+    def execute(self, dto: "GetSuggestionsDTO") -> list[SuggestionItem]:
+        if dto.document_count == 0:
+            return [
+                SuggestionItem(label="Tải tài liệu lên", action_key="open_upload"),
+                SuggestionItem(label="Tìm kiếm bài báo", action_key="focus_search"),
+                SuggestionItem(label="Xem bản đồ tri thức", action_key="navigate_graph"),
+            ]
+        if dto.has_draft:
+            return [
+                SuggestionItem(label="Tiếp tục soạn thảo", action_key="navigate_writing"),
+                SuggestionItem(label="Tìm kiếm thêm tài liệu", action_key="focus_search"),
+                SuggestionItem(label="Xem bản đồ tri thức", action_key="navigate_graph"),
+            ]
+        return [
+            SuggestionItem(label="Xem bản đồ tri thức", action_key="navigate_graph"),
+            SuggestionItem(label="Tìm kiếm thêm tài liệu", action_key="focus_search"),
+            SuggestionItem(label="Bắt đầu soạn thảo", action_key="navigate_writing"),
+        ]
 
 
 async def _stream_graph_to_queue(

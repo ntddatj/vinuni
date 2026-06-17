@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useChatStore } from '@/store/chatStore';
 import { useProjectStore } from '@/store/projectStore';
-import { createThread, sendMessage } from '@/api/chat';
+import { useWorkspaceStore } from '@/store/workspaceStore';
+import { createThread, sendMessage, getSuggestions, type Suggestion } from '@/api/chat';
 import { ChatHistoryPopover } from './ChatHistoryPopover';
 import styles from './ChatbotPanel.module.css';
 import { toast } from 'sonner';
@@ -17,6 +18,7 @@ export function ChatbotPanel() {
   const [lastWidth, setLastWidth] = useState(DEFAULT_WIDTH);
   const [showHistory, setShowHistory] = useState(false);
   const [inputValue, setInputValue] = useState('');
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const isDragging = useRef(false);
   const cleanupDragRef = useRef<(() => void) | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -24,6 +26,10 @@ export function ChatbotPanel() {
   const { t } = useTranslation();
 
   const activeProjectId = useProjectStore((s) => s.activeProjectId);
+  const activeTab = useWorkspaceStore((s) => s.activeTab);
+  const documentCount = useWorkspaceStore((s) => s.documentCount);
+  const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
+  const setUploadModalOpen = useWorkspaceStore((s) => s.setUploadModalOpen);
   const {
     messages,
     activeThreadId,
@@ -52,6 +58,53 @@ export function ChatbotPanel() {
     closeStream();
     reset();
   }, [activeProjectId]);
+
+  useEffect(() => {
+    if (!activeProjectId) {
+      setSuggestions([]);
+      return;
+    }
+    // Guard chống race: nếu đổi project/tab nhanh, bỏ qua response cũ về sau
+    // để không đè lên suggestions mới (giống pattern `cancelled` ở DocumentList).
+    let cancelled = false;
+    getSuggestions({
+      activeTab,
+      documentCount,
+      hasDraft: false,
+    })
+      .then((data) => {
+        if (!cancelled) setSuggestions(data);
+      })
+      .catch(() => {
+        if (!cancelled) setSuggestions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProjectId, documentCount, activeTab]);
+
+  function handleSuggestionClick(actionKey: string) {
+    switch (actionKey) {
+      case 'open_upload':
+        setActiveTab('library');
+        setUploadModalOpen(true);
+        break;
+      case 'navigate_library':
+        setActiveTab('library');
+        break;
+      case 'navigate_graph':
+        setActiveTab('graph');
+        break;
+      case 'navigate_writing':
+        setActiveTab('writing');
+        break;
+      case 'focus_search':
+        setActiveTab('library');
+        break;
+      default:
+        break;
+    }
+  }
 
   // Đóng EventSource khi unmount để tránh leak kết nối.
   useEffect(() => {
@@ -251,6 +304,21 @@ export function ChatbotPanel() {
             )}
             <div ref={messagesEndRef} />
           </div>
+
+          {suggestions.length > 0 && !isStreaming && (
+            <div className={styles.suggestions}>
+              {suggestions.map((s) => (
+                <button
+                  key={s.actionKey}
+                  className={styles.suggestionPill}
+                  onClick={() => handleSuggestionClick(s.actionKey)}
+                  type="button"
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className={styles.inputArea}>
             <input

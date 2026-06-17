@@ -8,6 +8,7 @@ from backend.src.modules.identity.domain.entities import User
 from backend.src.modules.identity.infrastructure.auth_dependencies import get_current_user
 from backend.src.modules.orchestrator.application.dtos import (
     CreateThreadDTO,
+    GetSuggestionsDTO,
     GetThreadMessagesDTO,
     InvokeDTO,
     ListThreadsDTO,
@@ -15,6 +16,7 @@ from backend.src.modules.orchestrator.application.dtos import (
 )
 from backend.src.modules.orchestrator.application.use_cases import (
     CreateThreadUseCase,
+    GetSuggestionsUseCase,
     GetThreadMessagesUseCase,
     InvokeUseCase,
     ListThreadsUseCase,
@@ -28,10 +30,12 @@ from backend.src.modules.orchestrator.presentation.schemas import (
     ChatMessageResponse,
     ChatThreadResponse,
     CreateThreadRequest,
+    GetSuggestionsRequest,
     InvokeRequest,
     InvokeResponse,
     SendMessageRequest,
     SendMessageResponse,
+    SuggestionItemResponse,
 )
 from backend.src.modules.workspace.domain.exceptions import ProjectAccessDeniedError, ProjectNotFoundError
 from backend.src.modules.workspace.domain.repositories import ProjectRepository
@@ -129,6 +133,22 @@ async def send_message(
     except ThreadAccessDeniedError as e:
         raise HTTPException(status_code=403, detail=str(e)) from e
     return SendMessageResponse(run_id=run_id)
+
+
+@router.post("/suggestions", response_model=list[SuggestionItemResponse])
+async def get_suggestions(
+    request: GetSuggestionsRequest,
+    current_user: User = Depends(get_current_user),
+) -> list[SuggestionItemResponse]:
+    use_case = GetSuggestionsUseCase()
+    items = use_case.execute(
+        GetSuggestionsDTO(
+            active_tab=request.active_tab,
+            document_count=request.document_count,
+            has_draft=request.has_draft,
+        )
+    )
+    return [SuggestionItemResponse(label=item.label, action_key=item.action_key) for item in items]
 
 
 @router.get("/stream")

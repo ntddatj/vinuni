@@ -37,3 +37,10 @@ class SendMessageDTO:
 @dataclass
 class StreamDTO:
     run_id: str
+
+
+@dataclass
+class GetSuggestionsDTO:
+    active_tab: str  # 'library' | 'graph' | 'writing'
+    document_count: int
+    has_draft: bool

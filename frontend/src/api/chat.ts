@@ -33,3 +33,19 @@ export async function sendMessage(
   );
   return data;
 }
+
+export interface Suggestion {
+  label: string;
+  actionKey: string;
+}
+
+export interface SuggestionsRequest {
+  activeTab: string;
+  documentCount: number;
+  hasDraft: boolean;
+}
+
+export async function getSuggestions(payload: SuggestionsRequest): Promise<Suggestion[]> {
+  const { data } = await apiClient.post<Suggestion[]>('/api/chat/suggestions', payload);
+  return data;
+}

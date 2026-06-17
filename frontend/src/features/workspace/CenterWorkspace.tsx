@@ -1,13 +1,12 @@
-import { useState } from 'react';
 import { useProjectStore } from '@/store/projectStore';
+import { useWorkspaceStore } from '@/store/workspaceStore';
 import { useTranslation } from '@/i18n/useTranslation';
 import { LibraryTab } from './LibraryTab';
 import styles from './CenterWorkspace.module.css';
 
-type TabKey = 'library' | 'graph' | 'writing';
-
 export function CenterWorkspace() {
-  const [activeTab, setActiveTab] = useState<TabKey>('library');
+  const activeTab = useWorkspaceStore((s) => s.activeTab);
+  const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
   const activeProjectId = useProjectStore((s) => s.activeProjectId);
   const projects = useProjectStore((s) => s.projects);
   const { t } = useTranslation();
