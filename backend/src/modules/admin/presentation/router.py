@@ -19,7 +19,12 @@ from backend.src.shared.infra.database import get_db_session as get_db
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 # Các setting đã biết và phải là số nguyên dương. Chặn tạo key rác / giá trị sai.
-_NUMERIC_SETTING_KEYS = {"MAX_PAPERS_PER_PROJECT", "BROAD_QUERY_THRESHOLD"}
+_NUMERIC_SETTING_KEYS = {
+    "MAX_PAPERS_PER_PROJECT",
+    "BROAD_QUERY_THRESHOLD",
+    "GC_RETENTION_DAYS",   # Story 4.1: số ngày giữ dữ liệu xóa mềm trước khi GC xóa cứng
+    "MAX_SYNC_RETRIES",    # Story 4.1: số lần retry sync Postgres→Neo4j trước khi vào DLQ
+}
 ALLOWED_SETTING_KEYS = _NUMERIC_SETTING_KEYS
 
 

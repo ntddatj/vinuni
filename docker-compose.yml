@@ -23,6 +23,26 @@ services:
       - "6379:6379"
     restart: unless-stopped
 
+  neo4j:
+    image: neo4j:5-community
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-neo4jpassword}
+      NEO4J_server_memory_heap_max__size: 5G
+      NEO4J_server_memory_pagecache_size: 3G
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:7474"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    mem_limit: 8g
+    restart: unless-stopped
+
   backend:
     build:
       context: .
@@ -31,6 +51,8 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      - RUN_MIGRATIONS=1   # chỉ backend chạy alembic upgrade head lúc start (tránh race với worker)
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,6 +80,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      neo4j:
+        condition: service_healthy
     volumes:
       - ./data:/app/data
     restart: unless-stopped
@@ -67,3 +91,4 @@ services:
 
 volumes:
   postgres_data:
+  neo4j_data:

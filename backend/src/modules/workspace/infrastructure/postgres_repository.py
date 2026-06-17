@@ -89,11 +89,14 @@ class PostgresProjectRepository(ProjectRepository):
         if not orm:
             return
 
+        now = datetime.now(timezone.utc)
         orm.is_deleted = True
-        orm.updated_at = datetime.now(timezone.utc)
+        orm.deleted_at = now
+        orm.updated_at = now
 
         outbox_event = SyncOutboxORM(
             event_type="PROJECT_DELETED",
+            project_id=project.id,
             payload={"project_id": project.id, "user_id": project.user_id},
         )
         self._db.add(outbox_event)

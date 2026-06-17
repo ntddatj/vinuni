@@ -65,6 +65,17 @@ class Settings(BaseSettings):
     max_upload_size_mb: int = 20
     papers_dir: str = "data/papers"
 
+    # Neo4j (Story 4.1)
+    neo4j_uri: str = "bolt://localhost:7687"
+    neo4j_username: str = "neo4j"
+    neo4j_password: str = "neo4jpassword"
+
+    # Graph sync settings (Story 4.1)
+    # MAX_SYNC_RETRIES + GC_RETENTION_DAYS → admin settings (system_settings), KHÔNG để env
+    # (chính sách/độ tin cậy do Admin cấu hình runtime). SYNC_OUTBOX_BATCH_SIZE giữ ở env vì là
+    # knob hạ tầng gắn RAM (ARCH-1) — không nên cho admin chỉnh để tránh OOM worker.
+    sync_outbox_batch_size: int = 100
+
     # AI / LLM
     gemini_api_key: str = ""
     fernet_secret_key: str = ""

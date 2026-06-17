@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import func as sa_func
 from sqlalchemy import or_, select
@@ -186,10 +188,12 @@ async def delete_paper_soft(db: AsyncSession, paper_id: str, project_id: str, us
 
     # Soft-delete paper
     paper.is_deleted = True
+    paper.deleted_at = datetime.now(timezone.utc)
 
     # Ghi sync_outbox cho Neo4j GC (ARCH-2)
     db.add(SyncOutboxORM(
         event_type="PAPER_DELETED",
+        project_id=project_id,
         payload={"paper_id": paper_id, "project_id": project_id},
     ))
 

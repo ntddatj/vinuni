@@ -93,3 +93,8 @@
 ## Deferred from: code review of story 2-7-quan-ly-tai-lieu-xoa-sua-metadata-cache-xem-pdf (2026-06-17)
 
 - 🟡 File-serve `FileResponse(path=paper.file_path)` chưa kiểm tra containment (`Path.resolve()` + `is_relative_to(papers_dir)`) và có TOCTOU giữa `.exists()` và lúc mở file. Defer: `user_id`/`paper_id` là UUID server-sinh nên `file_path` không do người dùng kiểm soát; chỉ là defense-in-depth, nên xử lý chung khi hardening tầng file-serve. [backend/src/modules/ingestion/presentation/router.py:285-289]
+
+## Deferred from: code review of story-4.1 (2026-06-18)
+
+- **Unknown event_type DLQ quá nhanh (~15s)** — `outbox_worker.py` `_process_group`: event lạ tăng `retry_count` mỗi cron tick (5s), DLQ sau MAX_SYNC_RETRIES=3 (~15s). Đúng AC#12 nhưng rủi ro mất event forward-compat của Story 4.3 (sinh trước khi handler deploy) vì chưa có replay DLQ. Cân nhắc khi làm 4.3: nâng MAX_SYNC_RETRIES / dùng ngưỡng riêng theo `created_at` cho event lạ, hoặc thêm cơ chế replay DLQ.
+- **Test-isolation SQLite (pre-existing)** — `tests/unit/workspace/test_projects_api.py`: 35 errors + 1 failed khi chạy chung full suite do state SQLite rò rỉ giữa test; pass khi chạy đơn lẻ. Tái hiện trên baseline, không liên quan story 4.1. Cần fixture cô lập DB per-test (hoặc transaction rollback) — việc chung của test harness.

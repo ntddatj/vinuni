@@ -35,9 +35,16 @@ from backend.src.modules.ingestion.infrastructure.task_progress import (
     publish_progress,
 )
 from backend.src.modules.ingestion.infrastructure.text_chunker import chunk_text
+from backend.src.modules.graph_rag.infrastructure.garbage_collection import garbage_collection_task  # noqa: F401
+from backend.src.modules.graph_rag.infrastructure.outbox_worker import sync_outbox_task  # noqa: F401
 from backend.src.modules.workspace.infrastructure.orm_models import (  # noqa: F401
     ProjectORM,
     SyncOutboxORM,
+)
+from backend.src.shared.infra.neo4j_client import (
+    close_neo4j_driver,
+    create_base_constraints,
+    get_neo4j_driver,
 )
 from backend.src.shared.infra.settings import get_settings
 
@@ -140,11 +147,17 @@ async def startup(ctx) -> None:
     ctx["session_factory"] = async_sessionmaker(engine, expire_on_commit=False)
     # ctx['redis'] do arq cung cấp sẵn (ArqRedis) — hỗ trợ .get()/.set()/.delete()
 
+    # Khởi tạo Neo4j driver và tạo base constraints (AC#3,4)
+    neo4j_driver = await get_neo4j_driver()
+    ctx["neo4j_driver"] = neo4j_driver
+    await create_base_constraints(neo4j_driver)
+
 
 async def shutdown(ctx) -> None:
     engine = ctx.get("engine")
     if engine is not None:
         await engine.dispose()
+    await close_neo4j_driver()
 
 
 async def _extract_text(paper: PaperORM, session_factory=None) -> str:
@@ -245,6 +258,26 @@ async def _download_and_persist_pdf(pdf_url: str, paper: PaperORM, session_facto
         return ""
 
 
+def _build_paper_upserted_event(paper: PaperORM) -> SyncOutboxORM:
+    """Tạo outbox event PAPER_UPSERTED với payload đủ để MERGE Paper + Authors (AC#8)."""
+    return SyncOutboxORM(
+        event_type="PAPER_UPSERTED",
+        project_id=paper.project_id,
+        payload={
+            "paper_id": paper.id,
+            "project_id": paper.project_id,
+            "title": paper.title,
+            "authors": paper.authors or [],
+            "year": paper.year,
+            "doi": paper.doi,
+            "arxiv_id": paper.arxiv_id,
+            "source": paper.source,
+            "url": paper.url,
+            "file_path": paper.file_path,
+        },
+    )
+
+
 async def ingest_paper_task(ctx, paper_id: str) -> None:
     """Background task: parse → chunk → embed → save. Publish tiến trình qua Redis."""
     redis = ctx["redis"]
@@ -268,8 +301,16 @@ async def ingest_paper_task(ctx, paper_id: str) -> None:
             text = await _extract_text(paper, session_factory)
 
             if not text.strip():
-                # Không có nội dung — đánh dấu indexed nhưng không có chunk
+                # Không có nội dung — đánh dấu indexed nhưng không có chunk.
+                # Race guard + producer: paper vẫn có metadata (title/authors) nên vẫn cần lên
+                # Neo4j (state="metadata_only") để Knowledge Map 4.2 thấy được. Bỏ qua nếu đã xóa.
+                await db.refresh(paper)
+                if paper.is_deleted:
+                    logger.info("Paper %s đã bị xóa trong lúc ingest — bỏ qua", paper_id)
+                    await publish_completed(redis, paper_id)
+                    return
                 paper.status = "indexed"
+                db.add(_build_paper_upserted_event(paper))
                 await db.commit()
                 await publish_completed(redis, paper_id)
                 return
@@ -338,6 +379,11 @@ async def ingest_paper_task(ctx, paper_id: str) -> None:
                     child_idx += 1
 
             paper.status = "indexed"
+
+            # Producer PAPER_UPSERTED — retrofit Story 2.5 nợ (AC#8).
+            # Đặt SAU guard is_deleted và TRƯỚC commit để đảm bảo Outbox Pattern (atomic).
+            db.add(_build_paper_upserted_event(paper))
+
             await db.commit()
 
             await publish_completed(redis, paper_id)
@@ -368,6 +414,13 @@ class WorkerSettings:
     max_jobs = 2  # NFR4: concurrency_limit=2
     job_timeout = 600  # 10 phút max per job
     keep_result = 300
+
+    # cron_jobs: sync outbox mỗi 5s + GC lúc 2h sáng (AC#16)
+    from arq import cron
+    cron_jobs = [
+        cron(sync_outbox_task, second=set(range(0, 60, 5)), timeout=60),
+        cron(garbage_collection_task, hour=2, minute=0, timeout=1800),
+    ]
 
     # arq đọc redis_settings như một ATTRIBUTE (RedisSettings), không gọi như method.
     # Để @classmethod sẽ khiến arq nhận classmethod object → worker không kết nối được Redis.

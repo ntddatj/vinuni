@@ -1,5 +1,5 @@
 # generated: 2026-06-15T17:36:00+07:00
-# last_updated: 2026-06-17T19:30:00+07:00
+# last_updated: 2026-06-18T00:00:00+07:00
 # project: C2-App-053
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-15T17:36:00+07:00
-last_updated: 2026-06-17T20:30:00+07:00
+last_updated: 2026-06-17T23:59:00+07:00
 project: C2-App-053
 project_key: NOKEY
 tracking_system: file-system
@@ -73,8 +73,12 @@ development_status:
   # epic-4 gộp 8→5 story (4.1–4.5) để giảm số lần vibecode (cốt lõi 🟢 → trí tuệ/FR7 🟡)
   # nguồn: sprint-change-proposal-2026-06-17-gap-detection.md (correct-course + Architect review, gộp 2026-06-17; Leiden → Phase 2, gap detection MVP dùng Cypher)
   # 4-1 đã gộp GC (ARCH-2). 4-4 = GraphRAG Engine (gap_detection/graph_search Cypher) + tô viền gap; Leiden hoãn Phase 2.
-  epic-4: backlog
-  4-1-dong-bo-postgres-neo4j-outbox-worker-va-garbage-collection: backlog
+  # role-clarity 2026-06-17 (sprint-change-proposal-2026-06-17-role-matrix.md): ma trận trách nhiệm Module↔Epic↔Story trong epics.md + làm rõ §9.6.
+  #   Nguyên tắc 3 trục (module=nơi code / epic=value / story=slice xuyên-module). Producer sync_outbox = ingestion; consumer = graph_rag/simple_rag.
+  #   Story xuyên-module: 4.1 [shared+ingestion-producer+graph_rag+workspace]; 4.3 [ingestion Stage-2 + graph_rag handler]; 4.5 [orchestrator tiến hóa Epic 3 + tool graph_rag].
+  #   Ontology: base constraints @4.1, ontology constraints+produce+MERGE @4.3. Status KHÔNG đổi (4.1 vẫn ready-for-dev — chỉ gắn nhãn).
+  epic-4: in-progress
+  4-1-dong-bo-postgres-neo4j-outbox-worker-va-garbage-collection: done
   4-2-knowledge-map-ui-doc-ve-do-thi-va-node-detail-card: backlog
   4-3-graph-extraction-trich-xuat-ontology-hoc-thuat: backlog
   4-4-gap-detection-tren-map-graphrag-engine-va-to-vien: backlog

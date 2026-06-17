@@ -88,6 +88,44 @@ NFR4: Background Processing (FastAPI BackgroundTasks cho nạp file ngầm, queu
 - **FR15 (Context-Aware Chat Guiding):** Epic 3 - AI Chatbot, RAG & Citation Guardrail
 - **FR16 (Document Lifecycle — Delete & Edit Metadata):** Epic 2 - Academic Search & Paper Ingestion Engine
 
+## Ma trận Trách nhiệm 3 Tầng (Module ↔ Epic ↔ Story ↔ FR)
+
+> **Thêm 2026-06-17 (correct-course role-clarity).** Làm rõ ranh giới vai trò sau nhiều lần gộp/tách story. Tham chiếu `sprint-change-proposal-2026-06-17-role-matrix.md`.
+>
+> **Nguyên tắc 3 trục (chốt):**
+> - **Module (architecture.md §9.4)** = *nơi code sống* — bounded context Hexagonal, cố định 7 module (`identity`, `workspace`, `ingestion`, `simple_rag`, `graph_rag`, `orchestrator`, `shared`).
+> - **Epic** = *chủ đề giá trị / nhóm FR* — **KHÔNG buộc 1:1 với module**.
+> - **Story** = *lát cắt thực thi (vertical slice)* — **được phép xuyên nhiều module**, miễn mỗi *task* khai báo `[module]` của nó và tôn trọng §9.6 (không module nào gọi thẳng infra của module khác).
+>
+> **Ranh giới bất biến (§9.6):** `ingestion` = **PRODUCER** duy nhất ghi `sync_outbox` (gồm Stage-2 Graph Extraction §6.2); `graph_rag`/`simple_rag` = **CONSUMER** (worker đọc `sync_outbox` → Neo4j / pgvector).
+
+| Module (§9.4) | Vai trò chính | Epic chính | Story | FR / ARCH |
+|---|---|---|---|---|
+| `identity` | Auth, JWT, users, RBAC | E1 | 1.1✅ 1.2✅ 1.3✅(BE auth) | FR1 |
+| `workspace` | Projects, settings động, **chủ ORM `sync_outbox` + bảng `projects`** | E1, E5 | 1.4✅ 1.5✅ 1.6✅; 2.6✅(limits); 5.3(settings) | FR2, FR11, FR12 |
+| `ingestion` | **PRODUCER** sync_outbox; pipeline nạp (write-heavy), Stage-1+Stage-2 §6.2 | E2 (+E4) | 2.2–2.5✅ 2.7✅; **4.1·Producer** `PAPER_UPSERTED`; **4.3** Stage-2 extraction | FR3,4,5,16; FR7(extract) |
+| `simple_rag` | Vector search read (pgvector), `vector_search` | E3 | 3.6✅ | FR6, NFR3 |
+| `graph_rag` | **CONSUMER** sync→Neo4j; `graph_search`/`gap_detection`; GC lifecycle | E4 | **4.1·Infra+Consumer+GC**; 4.2(BE đọc đồ thị); 4.4(GraphRAG Engine) | FR7, FR9, ARCH-2, ARCH-8 |
+| `orchestrator` | LangGraph, SSE, Supervisor/RAG/Gap agents, Citation Guardrail | E3 (+E4) | 3.1–3.4✅ 3.6✅; **4.5** tiến hóa Router-Worker | FR6,8,10,15; FR7(chat) |
+| `shared` | Shared Kernel: LLMRouter, `neo4j_client`, `redis_client`, settings | cross | 2.1✅(LLMRouter+keys); hạ tầng driver ở 4.1 | ARCH-6 |
+
+> *Frontend (React) được phân mảnh feature-sliced (Auth/Workspace/Chat/Graph) đi kèm phần FE của các story `[BE+FE]` — không phải module backend.*
+
+**Story xuyên-module (đã gắn nhãn task):**
+- **4.1** = `[shared]` Neo4j driver + `[ingestion]` producer `PAPER_UPSERTED` (vá nợ 2.5) + `[graph_rag]` consumer worker/GC + `[workspace]` migration `sync_outbox`/`projects` (+`[ingestion]` migration `papers.deleted_at`).
+- **4.3** = `[ingestion]` Stage-2 extraction (ghi ontology event) + `[graph_rag]` đăng ký handler MERGE ontology + tạo Unique Constraints ontology vào dispatch map của 4.1.
+- **4.5** = `[orchestrator]` tiến hóa graph LangGraph (chạm code Epic 3) + gọi tool `[graph_rag]` (gap_detection/graph_search).
+
+**Chủ sở hữu Ontology (gỡ chồng lấn 4.1 ↔ 4.3):**
+
+| Khía cạnh | Chủ (module) | Story |
+|---|---|---|
+| Schema base (Paper/Author/Project) + Unique Constraints base | `graph_rag` | **4.1** |
+| Schema ontology (Finding/Limitation/Method/Dataset/Topic/Problem + edges CONTRADICTS/SUPPORTS/HAS_LIMITATION/FILLS_GAP) + constraints ontology | `graph_rag` | **4.3** (KHÔNG phải 4.1) |
+| Trích xuất & PRODUCE ontology event vào `sync_outbox` | `ingestion` | **4.3** |
+| MERGE ontology vào Neo4j (consume) | `graph_rag` handler | **4.3** (đăng ký vào dispatch map khung-mở-rộng của 4.1) |
+| Khung dispatch map mở-rộng-được (forward-compat) | `graph_rag` | **4.1** |
+
 ## Epic List
 
 ### Epic 1: Quản lý Không gian & Nền tảng Xác thực (Workspace & Identity Foundation)
@@ -320,6 +358,7 @@ Driver Neo4j + Cypher MERGE, worker ARQ quét `sync_outbox` (SELECT ... FOR UPDA
 - **Gộp từ kế hoạch cũ:** Story 4.1 (Neo4j Connection & Base Cypher) + Story 4.2 (Outbox Worker Foundation) + Story 4.3 (Event-Driven Graph Sync) + **Story 4.4 (Graph Garbage Collection)**.
 - **Lưu ý mở rộng (Architect 2026-06-17):** Ngoài Paper/CITES/Author, worker còn đồng bộ **ontology học thuật** (Finding/Limitation + edges `[:CONTRADICTS]`/`[:SUPPORTS]`/`[:HAS_LIMITATION]`/`[:FILLS_GAP]`) do Story 4.3 ghi vào `sync_outbox`.
 - **🔸 GC gộp vào đây (Architect 2026-06-17):** GC dùng chung Neo4j driver + module sync-lifecycle nên gộp tiết kiệm một session. Là phần **"ride-along" không chặn** — làm sau cùng trong story, không ảnh hưởng đường demo (read path). Tôn trọng ARCH-2 (xóa mềm + cron 2h sáng + ngưỡng 7 ngày).
+- **🧭 Nhãn module/role (role-clarity 2026-06-17):** Story xuyên 4 module — `[shared]` Neo4j driver (`neo4j_client.py`) · `[ingestion]` **producer** `PAPER_UPSERTED` (**retrofit vá nợ Story 2.5**, code đặt trong `worker.py`) · `[graph_rag]` **consumer** worker + GC · `[workspace]` migration `sync_outbox`/`projects` (+`[ingestion]` migration `papers.deleted_at`). 4.1 tạo **constraints base** (Paper/Author/Project); **constraints + handler MERGE ontology là của Story 4.3**, 4.1 chỉ dựng **dispatch map mở-rộng-được**.
 - **FRs:** FR9, ARCH-8, **ARCH-2**.
 
 ### Story 4.2: [BE+FE] Knowledge Map UI — Đọc & Vẽ Đồ thị Cytoscape.js + Node Detail Card — ⏳ backlog 🟢
@@ -344,6 +383,7 @@ Hiện thực Giai đoạn 2 pipeline ingest (`gemini-2.5-pro`): từ Markdown �
 
 - **Gộp từ kế hoạch cũ:** Phát sinh trong thực thi (correct-course 2026-06-17). Hiện thực hóa ARCH §6.2 (GĐ2 Graph Extraction) + §5.2 (Graph Schema).
 - **Quyết định kiến trúc (Architect 2026-06-17):** (a) **MỞ RỘNG arq worker của Story 2.5** (module `ingestion`), tái dùng output GĐ1 — KHÔNG dựng worker/pass quét lại tài liệu (chống lãng phí token `gemini-2.5-pro`). (b) **Backfill bắt buộc:** doc đã ingest trước story này thiếu ontology → AC phải có bước re-enqueue extraction cho doc cũ (hoặc chấp nhận chỉ doc mới có graph — ghi rõ). (c) Chốt lại version model khi create-story (doc lệch 1.5 §7 vs 2.5 §6.2).
+- **🧭 Nhãn module/role (role-clarity 2026-06-17):** Story xuyên 2 module — `[ingestion]` **Stage-2 Graph Extraction** (mở rộng worker 2.5, là Giai đoạn 2 của pipeline §6.2, đóng vai **PRODUCER** ghi ontology event vào `sync_outbox`) · `[graph_rag]` tạo **Unique Constraints ontology** (Finding/Limitation/…) + **handler MERGE ontology** đăng ký vào dispatch map khung-mở-rộng của 4.1. Epic 4 giữ story này vì *value* = FR7, nhưng phần lớn **code lõi nằm ở module `ingestion`**, không phải `graph_rag`.
 - **Phụ thuộc:** Story 2.5 (pipeline + worker arq, đã done), Story 4.1 (sync để hiển thị).
 - **FRs:** FR7, FR9. (ARCH §5.2, §6.2.)
 
@@ -366,6 +406,7 @@ Tiến hóa orchestrator (sau Story 3.6) từ single RAG node sang topology Rout
 - **Gộp từ kế hoạch cũ:** Phát sinh trong thực thi (correct-course 2026-06-17). Hiện thực hóa ARCH §7.1, §7.2, §7.4.
 - **Quyết định kiến trúc (Architect 2026-06-17):** Cân nhắc **router nhẹ/lazy** — RAG là nhánh mặc định, chỉ rẽ Gap Analyst khi intent "khoảng trống/mâu thuẫn" rõ ràng, để **giữ SM-3 (first-chunk < 3s)** không bị thêm 1 hop LLM phân loại đầy đủ. Tích hợp nặng nhất Epic 4 → để cuối nhóm trí tuệ.
 - **🔸 Cầu nối Gap→Chat (Architect 2026-06-17):** Gap Analyst Agent là backend cho nút *"Giải thích khoảng trống này"* (Story 4.4) và *"Hỏi AI về bài này"* (Story 4.2) — đảm bảo trả lời gap qua chat có nguồn `[N]`.
+- **🧭 Nhãn module/role (role-clarity 2026-06-17):** Code lõi thuộc module **`[orchestrator]`** (graph LangGraph, §9.7) — **tiến hóa code đã build ở Epic 3** (3.2/3.6): single RAG node → topology Router-Worker. **Cross-epic touch hợp lệ** nhưng **KHÔNG được regress AC Epic 3 + SM-3 (first-chunk < 3s)**; RAG vẫn là **nhánh mặc định**, Gap Analyst là worker **thêm vào**. Gọi tool sang `[graph_rag]` (gap_detection/graph_search của 4.4) qua Port — không truy cập thẳng Neo4j (§9.6).
 - **Phụ thuộc:** Story 3.6 (real RAG node + SSE protocol), Story 4.4 (gap_detection/graph_search tools).
 - **FRs:** FR6, FR7. (ARCH §7.)
 

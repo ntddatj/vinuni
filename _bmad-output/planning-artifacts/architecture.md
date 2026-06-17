@@ -445,6 +445,23 @@ graph_rag/                   # Ví dụ cấu trúc bên trong module Graph RAG
     *   Module `ingestion` (Producer) chạy phân tích Docling/Gemini, lưu dữ liệu thô vào schema của nó trên Postgres, và ghi một transaction event vào bảng `sync_outbox`.
     *   Module `graph_rag` và `simple_rag` (Consumers) có các **Worker chạy nền** liên tục đọc `sync_outbox` (hoặc qua Message Queue) để lấy sự kiện và đẩy dữ liệu vào Neo4j hoặc đánh index pgvector tương ứng. Thiết kế này giúp Ingestion không bị nghẽn bởi Neo4j và phân tách hoàn toàn ranh giới giữa luồng Write và Read.
 
+> **🧭 Làm rõ ranh giới vai trò (correct-course role-clarity, 2026-06-17).** Tham chiếu `sprint-change-proposal-2026-06-17-role-matrix.md` (và ma trận trách nhiệm trong `epics.md`).
+>
+> **Nguyên tắc 3 trục — Module ≠ Epic ≠ Story:**
+> - **Module** (§9.4) = *nơi code sống* (bounded context cố định).
+> - **Epic** = *chủ đề giá trị / nhóm FR* — KHÔNG buộc 1:1 với module.
+> - **Story** = *lát cắt vertical-slice* — **được phép xuyên nhiều module**, miễn mỗi *task* khai báo `[module]` và không vi phạm Dependency Rule + Module Communication ở trên.
+>
+> **Chủ sở hữu sự kiện `sync_outbox` (Producer = `ingestion`; Consumer = `graph_rag`/`simple_rag`):**
+>
+> | Event | Producer (ghi) | Consumer (đọc → store) | Story phát sinh |
+> |---|---|---|---|
+> | `PAPER_UPSERTED` | `ingestion` | `graph_rag` → MERGE `Paper`/`Author` Neo4j | Producer: 4.1 (retrofit vá nợ 2.5); Consumer: 4.1 |
+> | `PROJECT_DELETED` / `PAPER_DELETED` | `workspace` / `ingestion` | `graph_rag` → gắn nhãn `:Deleted` | Sẵn có; consumer 4.1 |
+> | Ontology (`Finding`/`Limitation`/edges `CONTRADICTS`/`SUPPORTS`/`HAS_LIMITATION`/`FILLS_GAP`) | **`ingestion`** (Stage-2 Graph Extraction §6.2) | **`graph_rag`** → MERGE ontology | 4.3 (cả produce + handler) |
+>
+> **Hệ quả quan trọng:** **Stage-2 Graph Extraction (§6.2) là code của module `ingestion`** (mở rộng worker nạp), dù story 4.3 nằm trong Epic 4 vì *value* thuộc FR7. `graph_rag` chỉ **CONSUME** + cung cấp API đọc (`graph_search`/`gap_detection`). **Schema/constraints Neo4j do `graph_rag` sở hữu:** base (Paper/Author/Project) ở Story 4.1; ontology (Finding/Limitation/…) ở Story 4.3 — Story 4.1 chỉ dựng **dispatch map mở-rộng-được** để 4.3 thêm handler không phá worker core.
+
 ### 9.7. Cấu trúc Hexagonal của module Orchestrator
 Module `orchestrator` chịu trách nhiệm điều phối luồng AI Agent (LangGraph), chatbot và Server-Sent Events (SSE). Nó tuân thủ 4 lớp chính như sau:
 
