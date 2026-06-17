@@ -5,13 +5,14 @@ import xml.etree.ElementTree as ET
 import httpx
 from tenacity import AsyncRetrying, retry_if_exception, stop_after_attempt, wait_exponential
 
-from backend.src.modules.search.domain.entities import PaperResult
+from backend.src.modules.search.domain.entities import ClientSearchResult, PaperResult
 
 logger = logging.getLogger(__name__)
 
 ARXIV_API = "https://export.arxiv.org/api/query"
 ATOM_NS = "http://www.w3.org/2005/Atom"
 ARXIV_NS = "http://arxiv.org/schemas/atom"
+OPENSEARCH_NS = "http://a9.com/-/spec/opensearch/1.1/"
 
 
 def _is_retryable(exc: BaseException) -> bool:
@@ -26,7 +27,7 @@ class ArxivClient:
     def __init__(self) -> None:
         self._client = httpx.AsyncClient(timeout=8.0)
 
-    async def search(self, query: str, limit: int = 10) -> list[PaperResult]:
+    async def search(self, query: str, limit: int = 10) -> ClientSearchResult:
         params = {
             "search_query": f"all:{query}",
             "max_results": limit,
@@ -42,11 +43,18 @@ class ArxivClient:
                 response = await self._client.get(ARXIV_API, params=params)
                 response.raise_for_status()
 
-        return self._parse_atom(response.text)
+        return self._parse_atom(response.text, limit)
 
-    def _parse_atom(self, xml_text: str) -> list[PaperResult]:
-        results = []
+    def _parse_atom(self, xml_text: str, limit: int) -> ClientSearchResult:
         root = ET.fromstring(xml_text)
+
+        total_el = root.find(f"{{{OPENSEARCH_NS}}}totalResults")
+        try:
+            total_available = int(total_el.text) if total_el is not None and total_el.text else 0
+        except (ValueError, AttributeError):
+            total_available = 0
+
+        results = []
         for entry in root.findall(f"{{{ATOM_NS}}}entry"):
             title_el = entry.find(f"{{{ATOM_NS}}}title")
             abstract_el = entry.find(f"{{{ATOM_NS}}}summary")
@@ -93,7 +101,11 @@ class ArxivClient:
                 pdf_url=pdf_url,
                 source="arxiv",
             ))
-        return results
+
+        if total_available == 0:
+            total_available = len(results)
+
+        return ClientSearchResult(papers=results, total_available=total_available)
 
     async def aclose(self) -> None:
         await self._client.aclose()

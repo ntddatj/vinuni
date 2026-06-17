@@ -63,6 +63,8 @@ export const translations = {
   'search.bothSourcesFailed': { vi: 'Không thể kết nối đến các nguồn tìm kiếm. Vui lòng thử lại.', en: 'Cannot connect to search sources. Please try again.' },
   'search.addToProject': { vi: '+ Thêm vào dự án', en: '+ Add to Project' },
   'search.addComingSoon': { vi: 'Chức năng sẽ có ở Story 2.5', en: 'Feature coming in Story 2.5' },
+  'search.suggestionAriaLabel': { vi: 'Gợi ý phân ngành', en: 'Subfield suggestions' },
+  'search.broadQueryHint': { vi: 'Chủ đề quá rộng — thử thu hẹp:', en: 'Topic too broad — try narrowing:' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

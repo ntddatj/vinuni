@@ -13,4 +13,6 @@ export interface PaperResult {
 export interface SearchResponse {
   results: PaperResult[];
   warnings: string[];
+  isBroadQuery: boolean;
+  suggestions: string[];
 }

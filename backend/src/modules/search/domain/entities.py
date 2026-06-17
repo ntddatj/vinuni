@@ -15,7 +15,14 @@ class PaperResult:
 
 
 @dataclass
+class ClientSearchResult:
+    papers: list[PaperResult]
+    total_available: int  # Tổng kết quả có thể có từ API nguồn (để detect broad query)
+
+
+@dataclass
 class SearchResponse:
     results: list[PaperResult] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
-    # is_broad_query + suggestions sẽ được thêm vào Story 2.3
+    is_broad_query: bool = False
+    suggestions: list[str] = field(default_factory=list)

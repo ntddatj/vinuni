@@ -21,3 +21,5 @@ class SearchResponseSchema(BaseModel):
 
     results: list[PaperResultSchema]
     warnings: list[str]
+    is_broad_query: bool       # → isBroadQuery
+    suggestions: list[str]     # → suggestions

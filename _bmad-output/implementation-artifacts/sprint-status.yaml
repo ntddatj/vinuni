@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-15T17:36:00+07:00
-last_updated: 2026-06-17T14:00:00+07:00
+last_updated: 2026-06-17T08:30:00+07:00
 project: C2-App-053
 project_key: NOKEY
 tracking_system: file-system
@@ -54,7 +54,7 @@ development_status:
   epic-2: in-progress
   2-1-quan-ly-api-keys-ca-nhan-ma-hoa-bao-mat: done
   2-2-tim-kiem-bai-bao-hoc-thuat-song-song-voi-xu-ly-loi-degraded-union: done
-  2-3-goi-y-phan-nganh-mece-cho-chu-de-qua-rong: backlog
+  2-3-goi-y-phan-nganh-mece-cho-chu-de-qua-rong: done
   2-4-upload-tep-pdf-docx-thu-cong-trich-xuat-metadata-thong-minh: backlog
   2-5-ingestion-bat-dong-bo-qua-worker-arq-stream-tien-trinh-sse: backlog
   2-6-kiem-soat-gioi-han-so-luong-tai-lieu-admin-dat-ra: backlog

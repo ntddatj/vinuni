@@ -179,3 +179,26 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+.suggestionsBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 0 4px;
+}
+
+.suggestionChip {
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--rounded-sm);
+  background: var(--surface-raised);
+  color: var(--accent-blue);
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+}
+
+.suggestionChip:hover {
+  background: rgba(37, 99, 235, 0.1);
+}

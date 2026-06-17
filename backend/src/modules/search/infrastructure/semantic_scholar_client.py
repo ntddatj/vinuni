@@ -3,7 +3,7 @@ import logging
 import httpx
 from tenacity import AsyncRetrying, retry_if_exception, stop_after_attempt, wait_exponential
 
-from backend.src.modules.search.domain.entities import PaperResult
+from backend.src.modules.search.domain.entities import ClientSearchResult, PaperResult
 from backend.src.modules.search.infrastructure.arxiv_client import _is_retryable
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ class SemanticScholarClient:
     def __init__(self) -> None:
         self._client = httpx.AsyncClient(timeout=8.0)
 
-    async def search(self, query: str, limit: int = 10) -> list[PaperResult]:
+    async def search(self, query: str, limit: int = 10) -> ClientSearchResult:
         params = {"query": query, "fields": S2_FIELDS, "limit": limit}
         async for attempt in AsyncRetrying(
             retry=retry_if_exception(_is_retryable),
@@ -29,8 +29,15 @@ class SemanticScholarClient:
                 response.raise_for_status()
 
         data = response.json()
-        papers = data.get("data") if isinstance(data, dict) else None
-        return self._parse_response(papers if isinstance(papers, list) else [])
+        try:
+            total_available = int(data.get("total", 0)) if isinstance(data, dict) else 0
+        except (ValueError, TypeError):
+            total_available = 0
+        papers_raw = data.get("data") if isinstance(data, dict) else None
+        papers = self._parse_response(papers_raw if isinstance(papers_raw, list) else [])
+        if total_available == 0:
+            total_available = len(papers)
+        return ClientSearchResult(papers=papers, total_available=total_available)
 
     def _parse_response(self, papers: list[dict]) -> list[PaperResult]:
         results = []

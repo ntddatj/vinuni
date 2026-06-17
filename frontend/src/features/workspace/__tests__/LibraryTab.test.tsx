@@ -22,6 +22,8 @@ const MOCK_RESULT = {
     },
   ],
   warnings: [],
+  isBroadQuery: false,
+  suggestions: [],
 };
 
 function renderTab() {
@@ -79,7 +81,12 @@ describe('LibraryTab', () => {
   });
 
   it('hiển thị empty state khi không có kết quả', async () => {
-    vi.mocked(searchApi.searchPapers).mockResolvedValue({ results: [], warnings: [] });
+    vi.mocked(searchApi.searchPapers).mockResolvedValue({
+      results: [],
+      warnings: [],
+      isBroadQuery: false,
+      suggestions: [],
+    });
     renderTab();
 
     const input = screen.getByPlaceholderText(/tìm kiếm bài báo/i);
@@ -113,5 +120,72 @@ describe('LibraryTab', () => {
     fireEvent.click(screen.getByRole('button', { name: /tìm kiếm/i }));
 
     await waitFor(() => expect(screen.getByText('PDF')).toBeInTheDocument());
+  });
+
+  it('hiển thị chip gợi ý khi isBroadQuery = true', async () => {
+    vi.mocked(searchApi.searchPapers).mockResolvedValue({
+      results: [],
+      warnings: [],
+      isBroadQuery: true,
+      suggestions: ['Natural Language Processing', 'Computer Vision', 'Reinforcement Learning'],
+    });
+    renderTab();
+
+    const input = screen.getByPlaceholderText(/tìm kiếm bài báo/i);
+    fireEvent.change(input, { target: { value: 'AI' } });
+    fireEvent.click(screen.getByRole('button', { name: /tìm kiếm/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText('Natural Language Processing')).toBeInTheDocument()
+    );
+    expect(screen.getByText('Computer Vision')).toBeInTheDocument();
+    expect(screen.getByText('Reinforcement Learning')).toBeInTheDocument();
+  });
+
+  it('click chip gợi ý trigger tìm kiếm mới', async () => {
+    vi.mocked(searchApi.searchPapers)
+      .mockResolvedValueOnce({
+        results: [],
+        warnings: [],
+        isBroadQuery: true,
+        suggestions: ['Computer Vision'],
+      })
+      .mockResolvedValueOnce(MOCK_RESULT);
+
+    renderTab();
+
+    const input = screen.getByPlaceholderText(/tìm kiếm bài báo/i);
+    fireEvent.change(input, { target: { value: 'AI' } });
+    fireEvent.click(screen.getByRole('button', { name: /tìm kiếm/i }));
+
+    await waitFor(() => expect(screen.getByText('Computer Vision')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('Computer Vision'));
+
+    await waitFor(() =>
+      expect(vi.mocked(searchApi.searchPapers)).toHaveBeenCalledWith('Computer Vision', 10)
+    );
+    await waitFor(() =>
+      expect(screen.getByText('Attention Is All You Need')).toBeInTheDocument()
+    );
+  });
+
+  it('không hiển thị chip khi suggestions rỗng dù isBroadQuery = true', async () => {
+    vi.mocked(searchApi.searchPapers).mockResolvedValue({
+      results: [],
+      warnings: [],
+      isBroadQuery: true,
+      suggestions: [],
+    });
+    renderTab();
+
+    const input = screen.getByPlaceholderText(/tìm kiếm bài báo/i);
+    fireEvent.change(input, { target: { value: 'AI' } });
+    fireEvent.click(screen.getByRole('button', { name: /tìm kiếm/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/không tìm thấy bài báo/i)).toBeInTheDocument()
+    );
+    expect(screen.queryByRole('group', { name: /gợi ý phân ngành/i })).not.toBeInTheDocument();
   });
 });

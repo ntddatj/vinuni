@@ -43,6 +43,30 @@ export function LibraryTab() {
     }
   }
 
+  async function handleSuggestionClick(suggestion: string) {
+    setQuery(suggestion);
+    const currentId = ++searchIdRef.current;
+    setIsSearching(true);
+    setSearchResult(null);
+    try {
+      const result = await searchPapers(suggestion, 10);
+      if (currentId !== searchIdRef.current) return;
+      setSearchResult(result);
+      if (result.warnings.length >= 2) {
+        toast.error(t('search.bothSourcesFailed'));
+      } else if (result.warnings.length === 1) {
+        toast.warning(t('search.partialResults'));
+      }
+    } catch (err) {
+      if (currentId !== searchIdRef.current) return;
+      toast.error(getErrorMessage(err, t('search.searchError')));
+    } finally {
+      if (currentId === searchIdRef.current) {
+        setIsSearching(false);
+      }
+    }
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') {
       handleSearch();
@@ -71,6 +95,14 @@ export function LibraryTab() {
         </button>
       </div>
 
+      {searchResult?.isBroadQuery && searchResult.suggestions.length > 0 && (
+        <BroadQuerySuggestions
+          suggestions={searchResult.suggestions}
+          onSelect={handleSuggestionClick}
+          t={t}
+        />
+      )}
+
       {isSearching && (
         <div className={styles.loading}>{t('search.loading')}</div>
       )}
@@ -88,6 +120,30 @@ export function LibraryTab() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+interface BroadQuerySuggestionsProps {
+  suggestions: string[];
+  onSelect: (suggestion: string) => void;
+  t: (key: TranslationKey) => string;
+}
+
+function BroadQuerySuggestions({ suggestions, onSelect, t }: BroadQuerySuggestionsProps) {
+  if (suggestions.length === 0) return null;
+  return (
+    <div className={styles.suggestionsBar} role="group" aria-label={t('search.suggestionAriaLabel')}>
+      {suggestions.map((s) => (
+        <button
+          key={s}
+          type="button"
+          className={styles.suggestionChip}
+          onClick={() => onSelect(s)}
+        >
+          {s}
+        </button>
+      ))}
     </div>
   );
 }

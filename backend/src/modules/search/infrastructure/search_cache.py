@@ -37,6 +37,8 @@ class SearchCache:
             return SearchResponse(
                 results=[PaperResult(**r) for r in data["results"]],
                 warnings=data["warnings"],
+                is_broad_query=data.get("is_broad_query", False),
+                suggestions=data.get("suggestions", []),
             )
         except Exception as e:
             logger.warning("Redis cache get thất bại: %s", e)
@@ -50,6 +52,8 @@ class SearchCache:
             data = {
                 "results": [asdict(r) for r in response.results],
                 "warnings": response.warnings,
+                "is_broad_query": response.is_broad_query,
+                "suggestions": response.suggestions,
             }
             await self._redis.setex(key, CACHE_TTL_SECONDS, json.dumps(data))
         except Exception as e:

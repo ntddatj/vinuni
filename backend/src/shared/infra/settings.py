@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 
+    # Search
+    broad_query_threshold: int = 50
+
     # AI / LLM
     gemini_api_key: str = ""
     fernet_secret_key: str = ""

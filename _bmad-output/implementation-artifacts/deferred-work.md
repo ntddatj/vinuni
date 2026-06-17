@@ -39,3 +39,9 @@
 - **Race condition: `loadProjects` không hủy request cũ** — không có AbortController/latest-wins guard; response của lần fetch cũ (đổi search/page/create/delete) có thể resolve sau và đè dữ liệu mới. Defer: là pattern fetch dùng chung toàn app, debounce 300ms đã giảm thiểu phần lớn case gõ tìm kiếm; nên xử lý ở cấp epic (thêm AbortController hoặc request-id chung). [frontend/src/features/workspace/ProjectsPage.tsx]
 - **`formatDate` lệch ngày ở timezone âm với chuỗi date-only** — `new Date('2026-06-16')` parse là UTC midnight, `toLocaleDateString` render theo local → user phía tây UTC thấy lệch 1 ngày. Defer: phụ thuộc backend có trả date-only hay full ISO timestamp; hiện `createdAt` là ISO timestamp đầy đủ nên không phát sinh. [frontend/src/features/workspace/ProjectsPage.tsx:13]
 - **Tạo dự án mới có thể không hiển thị trên trang hiện tại** — `CreateProjectModal.onSuccess` refetch đúng trang đang xem; dự án mới (tùy sort) có thể rơi sang trang khác và không xuất hiện, không có feedback. Defer: giữ nguyên hành vi cũ, không phải regression của story này. [frontend/src/features/workspace/ProjectsPage.tsx]
+
+## Deferred from: code review of 2-3-goi-y-phan-nganh-mece-cho-chu-de-qua-rong (2026-06-17)
+
+- `detect()` vẫn được gọi khi cả 2 nguồn lỗi / khi threshold cấu hình âm có thể bắn LLM mỗi query. Low impact vì threshold mặc định 50 đã chặn. [broad_query_detector.py:39, use_cases.py:63]
+- Heuristic `total == 0 → len(papers)` ở cả ArxivClient và SemanticScholarClient che giấu trường hợp "thiếu field totalResults" vs "zero thật"; total âm không được guard. Một broad query mà nguồn thiếu field total sẽ không bao giờ được flag broad. Phụ thuộc upstream API, ít xảy ra. [arxiv_client.py:105, semantic_scholar_client.py:35]
+- Translation key `search.broadQueryHint` đã thêm nhưng không render ở đâu (orphaned key). Cleanup UX — AC#2 chỉ yêu cầu chip, không yêu cầu hint text. [frontend/src/i18n/translations.ts:67]
