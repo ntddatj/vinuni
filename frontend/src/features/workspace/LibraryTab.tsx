@@ -283,6 +283,7 @@ export function LibraryTab({ projectId }: LibraryTabProps) {
           projectId={projectId}
           refreshTrigger={docRefreshTrigger}
           onPapersLoad={setPapers}
+          onDeleteSuccess={() => setDocRefreshTrigger((n) => n + 1)}
         />
       )}
     </div>

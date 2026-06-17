@@ -1,7 +1,9 @@
 import json
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
@@ -22,7 +24,10 @@ from backend.src.modules.ingestion.domain.exceptions import (
 )
 from backend.src.modules.ingestion.infrastructure.postgres_repository import (
     PostgresPaperRepository,
+    delete_paper_soft,
+    find_paper_for_file_serve,
     is_project_owned_by_user,
+    update_paper_metadata,
 )
 from backend.src.modules.ingestion.infrastructure.sse_stream import generate_sse
 from backend.src.modules.ingestion.presentation.schemas import (
@@ -30,8 +35,11 @@ from backend.src.modules.ingestion.presentation.schemas import (
     AddFromSearchResponseSchema,
     ConfirmRequestSchema,
     ConfirmResponseSchema,
+    DeletePaperResponseSchema,
     PaperListItemSchema,
     PaperListResponseSchema,
+    PatchPaperRequestSchema,
+    PatchPaperResponseSchema,
     SSETicketResponseSchema,
     UploadResponseSchema,
 )
@@ -208,7 +216,79 @@ async def list_project_papers(
             source=p.source,
             status=p.status,
             created_at=p.created_at,
+            abstract=p.abstract,
+            has_file=bool(p.file_path),
+            pdf_url=p.pdf_url,
+            url=p.url,
         )
         for p in papers
     ]
     return PaperListResponseSchema(items)
+
+
+@router.delete("/projects/{project_id}/papers/{paper_id}", response_model=DeletePaperResponseSchema)
+async def delete_paper(
+    project_id: str,
+    paper_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> DeletePaperResponseSchema:
+    if not await is_project_owned_by_user(db, project_id, str(current_user.id)):
+        raise HTTPException(status_code=403, detail="Không có quyền truy cập dự án này")
+
+    deleted = await delete_paper_soft(db, paper_id, project_id, str(current_user.id))
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Tài liệu không tồn tại hoặc đã bị xóa")
+    return DeletePaperResponseSchema(message="Tài liệu đã được xóa thành công")
+
+
+@router.patch("/projects/{project_id}/papers/{paper_id}", response_model=PatchPaperResponseSchema)
+async def patch_paper_metadata(
+    project_id: str,
+    paper_id: str,
+    body: PatchPaperRequestSchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PatchPaperResponseSchema:
+    if not await is_project_owned_by_user(db, project_id, str(current_user.id)):
+        raise HTTPException(status_code=403, detail="Không có quyền truy cập dự án này")
+
+    paper = await update_paper_metadata(
+        db, paper_id, project_id, str(current_user.id),
+        title=body.title, authors=body.authors,
+        abstract=body.abstract, year=body.year,
+    )
+    if paper is None:
+        raise HTTPException(status_code=404, detail="Tài liệu không tồn tại")
+    return PatchPaperResponseSchema(
+        id=str(paper.id),
+        title=paper.title,
+        authors=list(paper.authors or []),
+        abstract=paper.abstract,
+        year=paper.year,
+        updated_at=paper.updated_at,
+    )
+
+
+@router.get("/projects/{project_id}/papers/{paper_id}/file")
+async def serve_paper_file(
+    project_id: str,
+    paper_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> FileResponse:
+    if not await is_project_owned_by_user(db, project_id, str(current_user.id)):
+        raise HTTPException(status_code=403, detail="Không có quyền truy cập dự án này")
+
+    paper = await find_paper_for_file_serve(db, paper_id, project_id, str(current_user.id))
+    if paper is None:
+        raise HTTPException(status_code=404, detail="Tài liệu không tồn tại")
+    if not paper.file_path or not Path(paper.file_path).exists():
+        raise HTTPException(status_code=404, detail="File nguồn chưa được cache hoặc không tồn tại")
+
+    return FileResponse(
+        path=paper.file_path,
+        media_type="application/pdf",
+        filename=f"{paper.id}.pdf",
+        headers={"Content-Disposition": f'inline; filename="{paper.id}.pdf"'},
+    )

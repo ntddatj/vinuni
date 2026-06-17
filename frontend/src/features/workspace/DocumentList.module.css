@@ -33,6 +33,14 @@
   background: var(--surface-raised);
   border: 1px solid var(--border-hairline);
   border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.rightSection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .main {
@@ -113,4 +121,134 @@
   50% {
     opacity: 0.5;
   }
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.editBtn,
+.deleteBtn,
+.viewFileBtn {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-hairline);
+  cursor: pointer;
+  background: var(--surface-raised);
+  color: var(--ink-primary);
+  text-decoration: none;
+  display: inline-block;
+  line-height: 1.4;
+}
+
+.deleteBtn {
+  border-color: var(--state-danger);
+  color: var(--state-danger);
+}
+
+.deleteBtn:hover {
+  background: color-mix(in srgb, var(--state-danger) 10%, transparent);
+}
+
+.viewFileBtn {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+.paywallLink {
+  font-size: 11px;
+  color: var(--ink-secondary);
+  text-decoration: underline;
+  font-style: italic;
+}
+
+.confirmOverlay,
+.editFormOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.confirmBox,
+.editForm {
+  background: var(--surface-raised);
+  border-radius: 8px;
+  padding: 24px;
+  min-width: 300px;
+  max-width: 480px;
+  width: 90%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.confirmBox p {
+  font-size: 14px;
+  color: var(--ink-primary);
+  margin: 0;
+}
+
+.confirmActions,
+.editFormActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.confirmDeleteBtn {
+  background: var(--state-danger);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.confirmDeleteBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cancelBtn {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline);
+  border-radius: 6px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink-primary);
+}
+
+.editFormTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-primary);
+  margin: 0;
+}
+
+.editLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--ink-secondary);
+}
+
+.editInput {
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 14px;
+  background: var(--surface-raised);
+  color: var(--ink-primary);
 }

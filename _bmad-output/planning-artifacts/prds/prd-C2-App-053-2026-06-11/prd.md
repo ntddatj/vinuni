@@ -106,9 +106,16 @@ Các User Journeys dưới đây xoay quanh các tác vụ cốt lõi trong mộ
   - *Consequences*: 
     - Bỏ giới hạn thời gian nạp 30 giây cứng nhắc. Thay vào đó, hệ thống sử dụng Server-Sent Events (SSE) để đẩy trạng thái tiến trình xử lý chi tiết lên Frontend.
     - Người dùng có thể theo dõi tiến trình trực quan trên giao diện: *"Đang tải từ internet..."* -> *"Đang quét cấu trúc & OCR..."* (nếu là PDF scan) -> *"Đang nhúng vector..."* -> *"Đã nạp thành công"*.
+    - Đối với tài liệu Open Access tải tự động, hệ thống LƯU TRỮ tệp PDF đã tải vào kho lưu trữ bảo mật phía server (`paper.file_path`) để phục vụ xem/tải lại sau này mà KHÔNG cần gọi lại API arXiv/Semantic Scholar. Tệp gốc được phục vụ qua endpoint bảo mật (xác thực JWT + quyền dự án, theo pattern Secure Media Access ARCH-9). Link có phí (paywalled/không tải được) giữ nguyên liên kết ngoài kèm nhãn *"nguồn cần trả phí"* (nhất quán Non-Goals — không tích hợp Sci-Hub).
 - **FR-5: Upload tài liệu thủ công & Trích xuất Metadata tự động**
   - Người dùng có thể tự upload tệp PDF/DOCX của riêng họ lên dự án.
   - **Quy trình xử lý tệp tải lên (PDF/DOCX):** Khi tệp được tải lên, Backend sẽ đưa nội dung thô lên LLM để tự động đọc hiểu và trích xuất các siêu dữ liệu (Tiêu đề, Tác giả, Năm, Tóm tắt). Sau đó, Frontend hiển thị một Form điền siêu dữ liệu với các trường do AI tự trích xuất có gắn nhãn *"AI Suggested"*. Người dùng có thể trực tiếp sửa đổi, điền thêm các thông tin còn thiếu và bấm nút *"Xác nhận"* để chính thức nạp tài liệu vào dự án và chạy nhúng vector.
+- **FR-16: Quản lý vòng đời Tài liệu trong Dự án (Document Lifecycle Management)**
+  - Người dùng có thể Xóa một tài liệu khỏi dự án và Chỉnh sửa siêu dữ liệu (Tiêu đề, Tác giả, Năm, Tóm tắt) của một tài liệu ĐÃ được nạp.
+  - *Consequences*:
+    - Xóa tài liệu dùng cơ chế xóa mềm (`is_deleted`), ghi sự kiện vào `sync_outbox` để đồng bộ gỡ node khỏi Neo4j (theo ARCH-2 GC), cascade xóa các chunk vector, và GIẢI PHÓNG 1 suất trong giới hạn `MAX_PAPERS_PER_PROJECT` (FR-11).
+    - Chỉnh sửa metadata chỉ cập nhật thông tin hiển thị/đồ thị, KHÔNG nhúng lại vector.
+    - Mọi thao tác kiểm tra quyền sở hữu dự án (owner scoping) chống truy cập trái phép.
 
 ### 4.3 Phân tích với AI Agent & Phát hiện Khoảng trống (Agentic Analysis & Gap Detection)
 **Description:** AI Agent sử dụng LangGraph để trả lời câu hỏi của người dùng dựa trên tài liệu trong dự án, phát hiện các khoảng trống nghiên cứu và mâu thuẫn.

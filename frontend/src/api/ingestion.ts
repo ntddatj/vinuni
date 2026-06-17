@@ -4,6 +4,8 @@ import type {
   AddFromSearchResponse,
   ConfirmRequest,
   ConfirmResponse,
+  PatchPaperRequest,
+  PatchPaperResponse,
   ProjectPaper,
   SSETicketResponse,
   UploadResponse,
@@ -39,4 +41,24 @@ export async function addPaperFromSearch(
 ): Promise<AddFromSearchResponse> {
   const res = await apiClient.post<AddFromSearchResponse>('/api/ingestion/from-search', data);
   return res.data;
+}
+
+export async function deletePaper(projectId: string, paperId: string): Promise<void> {
+  await apiClient.delete(`/api/projects/${projectId}/papers/${paperId}`);
+}
+
+export async function patchPaperMetadata(
+  projectId: string,
+  paperId: string,
+  data: PatchPaperRequest,
+): Promise<PatchPaperResponse> {
+  const res = await apiClient.patch<PatchPaperResponse>(
+    `/api/projects/${projectId}/papers/${paperId}`,
+    data,
+  );
+  return res.data;
+}
+
+export function getPaperFileUrl(projectId: string, paperId: string): string {
+  return `/api/projects/${projectId}/papers/${paperId}/file`;
 }

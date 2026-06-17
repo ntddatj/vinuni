@@ -1,5 +1,5 @@
 # generated: 2026-06-15T17:36:00+07:00
-# last_updated: 2026-06-17T17:00:00+07:00
+# last_updated: 2026-06-17T19:30:00+07:00
 # project: C2-App-053
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-15T17:36:00+07:00
-last_updated: 2026-06-17T23:30:00+07:00
+last_updated: 2026-06-17T20:30:00+07:00
 project: C2-App-053
 project_key: NOKEY
 tracking_system: file-system
@@ -58,21 +58,27 @@ development_status:
   2-4-upload-tep-pdf-docx-thu-cong-trich-xuat-metadata-thong-minh: done
   2-5-ingestion-bat-dong-bo-qua-worker-arq-stream-tien-trinh-sse: done
   2-6-kiem-soat-gioi-han-so-luong-tai-lieu-admin-dat-ra: done
+  2-7-quan-ly-tai-lieu-xoa-sua-metadata-cache-xem-pdf: done
   epic-2-retrospective: optional
 
   epic-3: in-progress
   3-1-dinh-tuyen-quan-ly-phien-chat-voi-postgressaver: done
   3-2-chat-rag-stream-ket-qua-qua-server-sent-events-sse: done
   3-3-chatbot-dinh-huong-dua-tren-trang-thai-du-an: done
-  3-4-citation-guardrail-node-chong-trich-dan-ao: backlog
-  3-5-giao-dien-tuong-tac-the-trich-dan: backlog
+  3-4-citation-guardrail-node-chong-trich-dan-ao: done
+  3-5-giao-dien-tuong-tac-the-trich-dan: done
+  3-6-real-rag-retriever-pgvector-citation-map-sse: done
   epic-3-retrospective: optional
 
+  # epic-4 gộp 8→5 story (4.1–4.5) để giảm số lần vibecode (cốt lõi 🟢 → trí tuệ/FR7 🟡)
+  # nguồn: sprint-change-proposal-2026-06-17-gap-detection.md (correct-course + Architect review, gộp 2026-06-17; Leiden → Phase 2, gap detection MVP dùng Cypher)
+  # 4-1 đã gộp GC (ARCH-2). 4-4 = GraphRAG Engine (gap_detection/graph_search Cypher) + tô viền gap; Leiden hoãn Phase 2.
   epic-4: backlog
-  4-1-dong-bo-postgres-sang-neo4j-event-driven-qua-outbox-worker: backlog
-  4-2-co-che-xoa-mem-don-dep-garbage-collection: backlog
-  4-3-ve-do-thi-cytoscape-js-tai-dong: backlog
-  4-4-node-detail-card-tich-hop-phat-hien-khoang-trong-truc-quan: backlog
+  4-1-dong-bo-postgres-neo4j-outbox-worker-va-garbage-collection: backlog
+  4-2-knowledge-map-ui-doc-ve-do-thi-va-node-detail-card: backlog
+  4-3-graph-extraction-trich-xuat-ontology-hoc-thuat: backlog
+  4-4-gap-detection-tren-map-graphrag-engine-va-to-vien: backlog
+  4-5-gap-analyst-agent-supervisor-routing-langgraph: backlog
   epic-4-retrospective: optional
 
   epic-5: backlog

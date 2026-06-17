@@ -44,3 +44,9 @@ class GetSuggestionsDTO:
     active_tab: str  # 'library' | 'graph' | 'writing'
     document_count: int
     has_draft: bool
+
+
+@dataclass
+class GetCitationDetailDTO:
+    chunk_id: str  # UUID của ChildChunkORM
+    user_id: str  # owner scoping — chỉ trả chunk thuộc paper của chính user (chống IDOR)

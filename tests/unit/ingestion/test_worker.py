@@ -112,3 +112,81 @@ async def test_publish_error_payload():
     payload = json.loads(args[1])
     assert payload["event"] == "error"
     assert payload["message"] == "Lỗi không xác định"
+
+
+# ---------- _get_following_redirects (SSRF-safe redirect follow) ----------
+
+
+class _FakeResp:
+    def __init__(self, status_code, location=None, url="https://arxiv.org/pdf/x"):
+        import httpx
+
+        self.status_code = status_code
+        self.headers = {"location": location} if location else {}
+        self.url = httpx.URL(url)
+
+
+class _FakeRedirectClient:
+    """Trả lần lượt các response đã nạp sẵn cho mỗi .get()."""
+
+    def __init__(self, responses):
+        self._responses = list(responses)
+        self.requested = []
+
+    async def get(self, url):
+        self.requested.append(url)
+        return self._responses.pop(0)
+
+
+@pytest.mark.asyncio
+async def test_get_following_redirects_follows_arxiv_http_to_https():
+    # arXiv: http://arxiv.org/pdf/... 301 -> https://arxiv.org/pdf/... 200
+    from backend.worker import _get_following_redirects
+
+    client = _FakeRedirectClient([
+        _FakeResp(301, location="https://arxiv.org/pdf/2501.12345",
+                  url="http://arxiv.org/pdf/2501.12345"),
+        _FakeResp(200, url="https://arxiv.org/pdf/2501.12345"),
+    ])
+    resp = await _get_following_redirects(client, "http://arxiv.org/pdf/2501.12345")
+    assert resp is not None and resp.status_code == 200
+    assert client.requested[-1] == "https://arxiv.org/pdf/2501.12345"
+
+
+@pytest.mark.asyncio
+async def test_get_following_redirects_blocks_ssrf_redirect():
+    # Redirect tới loopback phải bị SSRF guard chặn -> trả None (không tải)
+    from backend.worker import _get_following_redirects
+
+    client = _FakeRedirectClient([
+        _FakeResp(302, location="http://127.0.0.1/secret",
+                  url="https://evil.example.com/pdf"),
+    ])
+    resp = await _get_following_redirects(client, "https://evil.example.com/pdf")
+    assert resp is None
+
+
+# ---------- _sanitize_text (NUL / control char khỏi text PDF) ----------
+
+
+def test_sanitize_text_strips_nul_and_control_chars():
+    from backend.worker import _sanitize_text
+
+    raw = "Hello\x00World\x0c\x07 line2"
+    out = _sanitize_text(raw)
+    assert "\x00" not in out
+    assert "\x0c" not in out and "\x07" not in out
+    assert out == "HelloWorld line2"
+
+
+def test_sanitize_text_keeps_tab_newline_cr():
+    from backend.worker import _sanitize_text
+
+    raw = "a\tb\nc\rd"
+    assert _sanitize_text(raw) == "a\tb\nc\rd"
+
+
+def test_sanitize_text_handles_empty():
+    from backend.worker import _sanitize_text
+
+    assert _sanitize_text("") == ""

@@ -5,8 +5,14 @@ from dataclasses import dataclass
 
 from langchain_core.messages import HumanMessage
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.src.modules.ingestion.infrastructure.chunk_orm_models import ChildChunkORM
+from backend.src.modules.ingestion.infrastructure.orm_models import PaperORM
 from backend.src.modules.orchestrator.application.dtos import (
     CreateThreadDTO,
+    GetCitationDetailDTO,
     GetSuggestionsDTO,
     GetThreadMessagesDTO,
     InvokeDTO,
@@ -79,7 +85,7 @@ class ListThreadsUseCase:
 
 
 class InvokeUseCase:
-    """AC#5: chạy LangGraph mock graph, trả về câu trả lời ngay lập tức (không SSE)."""
+    """Chạy LangGraph graph, trả về câu trả lời ngay lập tức (không SSE)."""
 
     def __init__(self, repo: ChatThreadRepository) -> None:
         self._repo = repo
@@ -93,7 +99,13 @@ class InvokeUseCase:
 
         checkpointer = await get_postgres_checkpointer()
         graph = build_graph(checkpointer)
-        config = {"configurable": {"thread_id": dto.thread_id}}
+        config = {
+            "configurable": {
+                "thread_id": dto.thread_id,
+                "user_id": dto.user_id,
+                "project_id": thread.project_id,
+            }
+        }
         result = await graph.ainvoke(
             {"messages": [HumanMessage(content=dto.message)]},
             config=config,
@@ -102,7 +114,7 @@ class InvokeUseCase:
 
 
 class SendMessageUseCase:
-    """AC#6: lưu user message, tạo run_id, kick off background streaming task."""
+    """Lưu user message, tạo run_id, kick off background streaming task."""
 
     def __init__(self, repo: ChatThreadRepository) -> None:
         self._repo = repo
@@ -123,6 +135,8 @@ class SendMessageUseCase:
             _stream_graph_to_queue(
                 run_id=run_id,
                 thread_id=dto.thread_id,
+                user_id=dto.user_id,
+                project_id=thread.project_id,
                 message=dto.message,
                 queue=queue,
             )
@@ -140,7 +154,7 @@ class SuggestionItem:
 
 
 class GetSuggestionsUseCase:
-    """AC#1, #2: Trả về danh sách gợi ý hành động dựa trên trạng thái dự án.
+    """Trả về danh sách gợi ý hành động dựa trên trạng thái dự án.
     Mock LLM adapter — logic thuần Python, không gọi vector DB hay LLM thật.
     """
 
@@ -164,36 +178,101 @@ class GetSuggestionsUseCase:
         ]
 
 
+@dataclass
+class CitationDetail:
+    title: str
+    text: str
+
+
+class GetCitationDetailUseCase:
+    """Tra cứu nội dung chunk trích dẫn từ DB."""
+
+    def __init__(self, db: AsyncSession) -> None:
+        self._db = db
+
+    async def execute(self, dto: GetCitationDetailDTO) -> CitationDetail | None:
+        stmt = (
+            select(ChildChunkORM.content, PaperORM.title)
+            .join(PaperORM, ChildChunkORM.paper_id == PaperORM.id)
+            .where(ChildChunkORM.id == dto.chunk_id)
+            .where(PaperORM.user_id == dto.user_id)
+        )
+        row = (await self._db.execute(stmt)).first()
+        if row is None:
+            return None
+        return CitationDetail(title=row.title, text=row.content)
+
+
 async def _stream_graph_to_queue(
     run_id: str,
     thread_id: str,
+    user_id: str,
+    project_id: str,
     message: str,
-    queue: "asyncio.Queue[str | None]",
+    queue: "asyncio.Queue[dict | None]",
 ) -> None:
-    """Background task: chạy LangGraph graph, đẩy từng ký tự vào queue, lưu assistant message.
+    """Background task: stream token thật từ LangGraph, lưu assistant message, emit citation_map.
 
-    Tự tạo DB session riêng — KHÔNG tái dùng session request-scoped (đã bị đóng
-    khi endpoint trả về), nếu không save_message assistant sẽ thất bại.
+    Dùng astream_events (version v2) thay vì ainvoke + fake char loop.
+    Session DB tự tạo trong node — không leak session request-scoped.
     """
     try:
         checkpointer = await get_postgres_checkpointer()
         graph = build_graph(checkpointer)
-        config = {"configurable": {"thread_id": thread_id}}
-        result = await graph.ainvoke(
+        config = {
+            "configurable": {
+                "thread_id": thread_id,
+                "user_id": user_id,
+                "project_id": project_id,
+            }
+        }
+
+        # Stream token thật qua astream_events
+        async for event in graph.astream_events(
             {"messages": [HumanMessage(content=message)]},
             config=config,
-        )
-        answer: str = result["messages"][-1].content
+            version="v2",
+        ):
+            kind = event["event"]
+            if kind == "on_chat_model_stream":
+                chunk = event["data"]["chunk"]
+                if isinstance(chunk.content, str) and chunk.content:
+                    await queue.put({"type": "chunk", "data": chunk.content})
 
-        for char in answer:
-            await queue.put(char)
-            await asyncio.sleep(0.05)  # 50ms per character
+        # Lấy state cuối (sau khi guardrail đã sửa) qua checkpointer
+        final_snapshot = await graph.aget_state(config)
+        final_state = final_snapshot.values
 
+        citation_map: dict[int, str] = final_state.get("citation_map", {})
+        msgs = final_state.get("messages", [])
+        final_content: str = ""
+        if msgs:
+            last = msgs[-1]
+            final_content = last.content if isinstance(last.content, str) else ""
+
+        # Lưu vào DB
         async with AsyncSessionMaker() as session:
             repo = PostgresChatThreadRepository(session)
-            await repo.save_message(thread_id, "assistant", answer)
+            await repo.save_message(thread_id, "assistant", final_content)
+
+        # Emit citation_map rồi done (frontend sẽ replace streamingContent bằng final_content đã sạch)
+        if citation_map:
+            await queue.put({"type": "citation_map", "data": citation_map})
+        await queue.put({"type": "done", "content": final_content})
+
     except Exception:
-        logger.exception("Lỗi khi stream/lưu assistant message cho run_id=%s thread_id=%s", run_id, thread_id)
+        logger.exception(
+            "Lỗi khi stream graph run_id=%s thread_id=%s", run_id, thread_id
+        )
+        # Emit done có content lỗi để frontend hiển thị phản hồi thay vì im lặng
+        # bỏ qua (commitStreamingMessage('') sẽ drop message, người dùng mất tăm).
+        await queue.put(
+            {
+                "type": "done",
+                "content": "Xin lỗi, đã xảy ra lỗi khi tạo câu trả lời. Vui lòng thử lại.",
+            }
+        )
     finally:
-        await queue.put(None)  # Sentinel — kết thúc SSE stream
+        # Sentinel failsafe: khi exception xảy ra trước khi emit done, event_generator không bị block mãi.
+        await queue.put(None)
         delete_run(run_id)

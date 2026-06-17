@@ -13,6 +13,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   createdAt: string;
+  citationMap?: Record<string, string>; // ordinal → chunk UUID (frontend-only, không có trong API response)
 }
 
 export interface SendMessageResponse {

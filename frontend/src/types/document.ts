@@ -28,6 +28,26 @@ export interface ProjectPaper {
   source: 'manual' | 'arxiv' | 'semantic_scholar';
   status: 'pending' | 'processing' | 'indexed' | 'failed';
   createdAt: string;
+  abstract: string | null;
+  hasFile: boolean;
+  pdfUrl: string | null;
+  url: string | null;
+}
+
+export interface PatchPaperRequest {
+  title?: string;
+  authors?: string[];
+  abstract?: string;
+  year?: number | null;
+}
+
+export interface PatchPaperResponse {
+  id: string;
+  title: string;
+  authors: string[];
+  abstract: string | null;
+  year: number | null;
+  updatedAt: string;
 }
 
 export interface SSETicketResponse {

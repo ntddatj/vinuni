@@ -71,3 +71,9 @@ class SuggestionItemResponse(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
     label: str
     action_key: str
+
+
+class CitationDetailResponse(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+    title: str
+    text: str

@@ -49,6 +49,23 @@ _EXT_TO_MIME = {
 }
 
 _MAX_PDF_BYTES = 50 * 1024 * 1024  # 50MB — chặn tải file quá lớn
+_REDIRECT_CODES = {301, 302, 303, 307, 308}
+_MAX_REDIRECTS = 5
+
+# PostgreSQL TEXT không cho phép NUL (\x00); fitz/PyMuPDF hay sinh NUL + control char C0 với
+# một số font/encoding PDF → insert chunk sẽ raise và cả paper fail. Bỏ NUL + C0 (giữ \t \n \r)
+# và DEL (\x7f). Dùng translate(None) để xoá thay vì thay khoảng trắng.
+_CONTROL_CHAR_MAP = {
+    c: None for c in range(0x20) if c not in (0x09, 0x0A, 0x0D)
+}
+_CONTROL_CHAR_MAP[0x7F] = None
+
+
+def _sanitize_text(text: str) -> str:
+    """Loại NUL + control char C0/DEL khỏi text trích từ PDF để chunk/insert an toàn vào Postgres."""
+    if not text:
+        return text
+    return text.translate(_CONTROL_CHAR_MAP)
 
 
 def _is_public_http_url(url: str) -> bool:
@@ -88,6 +105,34 @@ def _is_public_http_url(url: str) -> bool:
     return True
 
 
+async def _get_following_redirects(client, url: str):
+    """GET tự follow redirect THỦ CÔNG, re-validate mỗi hop bằng SSRF guard.
+
+    Tại sao không dùng follow_redirects=True của httpx: nguồn miễn phí như arXiv trả
+    pdf_url dạng ``http://arxiv.org/pdf/...`` rồi 301 sang ``https://`` — phải follow thì
+    mới tải được. Nhưng để httpx tự follow sẽ bỏ qua SSRF guard ở mỗi Location mới (có thể
+    bị redirect về host nội bộ). Nên ta tự lặp và kiểm tra từng URL đích.
+
+    Trả về Response cuối (status không phải redirect), hoặc None nếu redirect tới URL không
+    an toàn / vượt quá _MAX_REDIRECTS.
+    """
+    current = url
+    for _ in range(_MAX_REDIRECTS + 1):
+        resp = await client.get(current)
+        if resp.status_code not in _REDIRECT_CODES:
+            return resp
+        location = resp.headers.get("location")
+        if not location:
+            return resp
+        next_url = str(resp.url.join(location))
+        if not _is_public_http_url(next_url):
+            logger.warning("Bỏ qua redirect tới URL không an toàn (SSRF guard): %s", next_url)
+            return None
+        current = next_url
+    logger.warning("Quá nhiều redirect khi tải PDF: %s", url)
+    return None
+
+
 async def startup(ctx) -> None:
     settings = get_settings()
     engine = create_async_engine(settings.database_url)
@@ -102,45 +147,85 @@ async def shutdown(ctx) -> None:
         await engine.dispose()
 
 
-async def _extract_text(paper: PaperORM) -> str:
+async def _extract_text(paper: PaperORM, session_factory=None) -> str:
     """Lấy text từ file local, hoặc download PDF từ pdf_url, fallback abstract."""
     text = ""
     if paper.file_path and Path(paper.file_path).exists():
         ext = Path(paper.file_path).suffix.lower()
         mime_type = _EXT_TO_MIME.get(ext, "application/pdf")
-        text = DocumentParser().extract_text(paper.file_path, mime_type)
+        try:
+            text = DocumentParser().extract_text(paper.file_path, mime_type)
+        except Exception as e:
+            # File local hỏng/cụt (vd crash giữa lúc persist) — không fail cả paper,
+            # để fallback abstract bên dưới xử lý.
+            logger.warning("Không thể parse file local %s: %s", paper.file_path, e)
+            text = ""
     elif paper.pdf_url:
-        text = await _download_pdf_text(paper.pdf_url)
+        text = await _download_and_persist_pdf(paper.pdf_url, paper, session_factory)
 
     if not text.strip() and paper.abstract:
         text = paper.abstract
-    return text
+    return _sanitize_text(text)
 
 
-async def _download_pdf_text(pdf_url: str) -> str:
+async def _download_and_persist_pdf(pdf_url: str, paper: PaperORM, session_factory) -> str:
+    """Download PDF từ URL. Nếu Open Access & ≤ 20MB: persist vào disk, set paper.file_path.
+    Luôn trả về text (để chunking). File > 20MB: không persist nhưng vẫn trả text."""
     import tempfile
 
+    import fitz
     import httpx
+
+    settings = get_settings()
+    _MAX_PERSIST_BYTES = settings.max_upload_size_mb * 1024 * 1024
 
     if not _is_public_http_url(pdf_url):
         logger.warning("Bỏ qua pdf_url không an toàn (SSRF guard): %s", pdf_url)
         return ""
 
     try:
-        # follow_redirects=False để tránh bị redirect tới host nội bộ sau khi đã qua guard.
+        # follow_redirects=False: tự follow thủ công qua _get_following_redirects để re-validate
+        # mỗi hop bằng SSRF guard (arXiv 301 http→https cần follow mới tải được).
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=False) as client:
-            resp = await client.get(pdf_url)
-        if resp.status_code != 200:
+            resp = await _get_following_redirects(client, pdf_url)
+        if resp is None or resp.status_code != 200:
             return ""
         if len(resp.content) > _MAX_PDF_BYTES:
-            logger.warning("PDF quá lớn (%d bytes) từ %s — bỏ qua", len(resp.content), pdf_url)
+            logger.warning("PDF quá lớn (%d bytes) — bỏ qua parse", len(resp.content))
             return ""
         ctype = resp.headers.get("content-type", "").lower()
         if ctype and "application/pdf" not in ctype and "octet-stream" not in ctype:
-            logger.warning("Content-Type không phải PDF (%s) từ %s — bỏ qua", ctype, pdf_url)
+            logger.warning("Content-Type không phải PDF (%s) — bỏ qua", ctype)
             return ""
-        import fitz  # PyMuPDF
 
+        # Persist nếu ≤ 20MB (NFR2)
+        if len(resp.content) > _MAX_PERSIST_BYTES:
+            logger.info(
+                "PDF %d bytes > %dMB — không persist, chỉ extract text",
+                len(resp.content), settings.max_upload_size_mb,
+            )
+        elif session_factory is not None:
+            target_dir = Path(settings.papers_dir) / paper.user_id
+            target_dir.mkdir(parents=True, exist_ok=True)
+            file_path = str(target_dir / f"{paper.id}.pdf")
+            try:
+                Path(file_path).write_bytes(resp.content)
+                # Update file_path trong DB qua session riêng để không ảnh hưởng transaction chính
+                async with session_factory() as update_db:
+                    result = await update_db.execute(
+                        select(PaperORM).where(PaperORM.id == paper.id)
+                    )
+                    p = result.scalar_one_or_none()
+                    if p:
+                        p.file_path = file_path
+                        await update_db.commit()
+            except Exception as e:
+                # Lỗi persist (đĩa đầy, DB lỗi...) KHÔNG được làm hỏng cả job ingestion (Dev Note #8)
+                # — vẫn extract text bên dưới. Dọn file ghi dở để không serve PDF cụt sau này.
+                logger.warning("Không thể persist PDF cho paper %s: %s", paper.id, e)
+                Path(file_path).unlink(missing_ok=True)
+
+        # Extract text từ resp.content (đã có trong memory)
         tmp_path = ""
         try:
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
@@ -180,7 +265,7 @@ async def ingest_paper_task(ctx, paper_id: str) -> None:
 
             # Bước 2: lấy text
             await publish_progress(redis, paper_id, 10, "reading", "Đang đọc tài liệu...")
-            text = await _extract_text(paper)
+            text = await _extract_text(paper, session_factory)
 
             if not text.strip():
                 # Không có nội dung — đánh dấu indexed nhưng không có chunk
@@ -217,6 +302,14 @@ async def ingest_paper_task(ctx, paper_id: str) -> None:
 
             # Bước 5: save
             await publish_progress(redis, paper_id, 85, "saving", "Đang lưu dữ liệu...")
+            # Race guard: user có thể đã xóa paper trong lúc embedding. delete_paper_soft đã
+            # xóa chunks + set is_deleted; nếu ta ghi chunk mới lúc này thì paper đã xóa lại
+            # xuất hiện trong RAG (phá vỡ AC#1). Refresh trạng thái mới nhất rồi bỏ qua nếu đã xóa.
+            await db.refresh(paper)
+            if paper.is_deleted:
+                logger.info("Paper %s đã bị xóa trong lúc ingest — bỏ qua lưu chunks", paper_id)
+                await publish_completed(redis, paper_id)
+                return
             # Idempotent: xóa chunk cũ của paper này (re-ingest / job trùng) trước khi ghi mới.
             await db.execute(delete(ChildChunkORM).where(ChildChunkORM.paper_id == paper_id))
             await db.execute(delete(ParentChunkORM).where(ParentChunkORM.paper_id == paper_id))

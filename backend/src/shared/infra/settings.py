@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     # File Upload
     upload_dir: str = "data/uploads"
     max_upload_size_mb: int = 20
+    papers_dir: str = "data/papers"
 
     # AI / LLM
     gemini_api_key: str = ""

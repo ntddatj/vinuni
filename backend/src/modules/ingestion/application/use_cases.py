@@ -239,12 +239,23 @@ class IngestFromSearchUseCase:
 
         paper_id = str(uuid.uuid4())
         async with _paper_limit_lock(redis, project_id):
+            paper_repo = PostgresPaperRepository(db)
+
+            # Dedupe: nếu paper cùng arxiv_id/doi đã có trong project (vd double-submit),
+            # trả về bản hiện có thay vì tạo trùng + enqueue thừa. Lock per-project serialize
+            # các request đồng thời nên bản trước đã commit trước khi bản sau check tới đây.
+            existing = await paper_repo.find_active_by_identity(project_id, arxiv_id, doi)
+            if existing is not None:
+                return {
+                    "document_id": existing.id,
+                    "message": "Tài liệu đã có trong dự án",
+                }
+
             max_limit = await get_max_papers_limit(db)
             current_count = await count_papers_by_project(db, project_id)
             if current_count >= max_limit:
                 raise ProjectPaperLimitExceededError(project_id, max_limit)
 
-            paper_repo = PostgresPaperRepository(db)
             await paper_repo.save_search_paper(
                 paper_id=paper_id,
                 project_id=project_id,

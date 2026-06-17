@@ -331,3 +331,57 @@ async def test_get_max_papers_limit_fallback():
         assert await get_max_papers_limit(mock_db) == 15
         mock_get_setting.return_value = None
         assert await get_max_papers_limit(mock_db) == 15
+
+
+@pytest.mark.asyncio
+async def test_ingest_from_search_dedupes_by_arxiv_id(db):
+    """Double-submit cùng arxiv_id -> trả paper hiện có, KHÔNG tạo trùng / enqueue lại."""
+    use_case = IngestFromSearchUseCase()
+
+    with (
+        patch(
+            "backend.src.modules.ingestion.application.use_cases.is_project_owned_by_user",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "backend.src.modules.ingestion.application.use_cases.get_redis",
+            new_callable=AsyncMock,
+        ) as mock_get_redis,
+        patch(
+            "backend.src.modules.ingestion.application.use_cases.PostgresPaperRepository"
+        ) as MockPaperRepo,
+        patch(
+            "backend.src.modules.ingestion.application.use_cases.enqueue_ingestion_task",
+            new_callable=AsyncMock,
+        ) as mock_enqueue,
+    ):
+        mock_redis = AsyncMock()
+        mock_redis.set = AsyncMock(return_value=True)
+        mock_redis.delete = AsyncMock()
+        mock_get_redis.return_value = mock_redis
+
+        existing = MagicMock()
+        existing.id = "existing-paper-id"
+        mock_paper_repo = AsyncMock()
+        mock_paper_repo.find_active_by_identity = AsyncMock(return_value=existing)
+        MockPaperRepo.return_value = mock_paper_repo
+
+        result = await use_case.execute(
+            project_id="proj-1",
+            user_id="user-1",
+            title="Paper",
+            authors=["Author"],
+            abstract="Abstract",
+            year=2024,
+            doi=None,
+            arxiv_id="2501.12345",
+            url=None,
+            pdf_url=None,
+            source="arxiv",
+            db=db,
+        )
+
+        assert result["document_id"] == "existing-paper-id"
+        mock_paper_repo.save_search_paper.assert_not_called()
+        mock_enqueue.assert_not_called()

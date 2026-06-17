@@ -5,6 +5,7 @@ import { useProjectStore } from '@/store/projectStore';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { createThread, sendMessage, getSuggestions, type Suggestion } from '@/api/chat';
 import { ChatHistoryPopover } from './ChatHistoryPopover';
+import { MessageContent } from '@/components/MessageContent';
 import styles from './ChatbotPanel.module.css';
 import { toast } from 'sonner';
 
@@ -23,6 +24,7 @@ export function ChatbotPanel() {
   const cleanupDragRef = useRef<(() => void) | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const citationMapRef = useRef<Record<string, string>>({});
   const { t } = useTranslation();
 
   const activeProjectId = useProjectStore((s) => s.activeProjectId);
@@ -56,6 +58,7 @@ export function ChatbotPanel() {
   // chunk của project cũ chèn vào hội thoại mới.
   useEffect(() => {
     closeStream();
+    citationMapRef.current = {};
     reset();
   }, [activeProjectId]);
 
@@ -175,16 +178,32 @@ export function ChatbotPanel() {
   }
 
   async function handleSend() {
-    if (!inputValue.trim() || !activeThreadId || isStreaming) return;
+    if (!inputValue.trim() || !activeProjectId || isStreaming) return;
+
+    // Tạo thread lười: người dùng mở dự án và gõ ngay mà không bấm
+    // "Tạo cuộc trò chuyện mới" → activeThreadId vẫn null → trước đây nút Gửi
+    // im lặng không làm gì. Tự tạo thread đầu tiên rồi mới gửi.
+    let threadId = activeThreadId;
+    if (!threadId) {
+      try {
+        const thread = await createThread(activeProjectId);
+        setActiveThreadId(thread.id);
+        threadId = thread.id;
+      } catch {
+        toast.error('Không thể tạo cuộc trò chuyện mới');
+        return;
+      }
+    }
 
     const text = inputValue.trim();
     const optimisticId = addOptimisticUserMessage(text);
     setInputValue('');
+    citationMapRef.current = {}; // tránh map của tin nhắn trước dính sang câu trả lời mới
     beginStreaming(); // isStreaming=true + reset streamingContent
 
     let runId: string;
     try {
-      ({ runId } = await sendMessage(activeThreadId, text));
+      ({ runId } = await sendMessage(threadId, text));
     } catch {
       // POST thất bại → gỡ optimistic message để không hiển thị tin chưa gửi được.
       removeMessage(optimisticId);
@@ -198,15 +217,23 @@ export function ChatbotPanel() {
     eventSourceRef.current = es;
 
     es.onmessage = (e) => {
-      let data: { event?: string; chunk?: string };
+      let data: {
+        event?: string;
+        chunk?: string;
+        content?: string;
+        data?: Record<string, string>;
+      };
       try {
         data = JSON.parse(e.data);
       } catch {
         return; // bỏ qua frame không hợp lệ (vd: keep-alive comment)
       }
       if (data.event === 'done') {
-        commitStreamingMessage();
+        commitStreamingMessage(data.content, citationMapRef.current);
+        citationMapRef.current = {};
         closeStream();
+      } else if (data.event === 'citation_map') {
+        citationMapRef.current = data.data ?? {};
       } else if (typeof data.chunk === 'string') {
         appendChunk(data.chunk);
       }
@@ -279,47 +306,6 @@ export function ChatbotPanel() {
             )}
           </div>
 
-          <div className={styles.messages}>
-            {!activeProjectId && <p className={styles.hint}>{t('chat.noProject')}</p>}
-            {isLoadingMessages && <p className={styles.hint}>Đang tải tin nhắn...</p>}
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`${styles.bubble} ${msg.role === 'user' ? styles.userBubble : styles.aiBubble}`}
-              >
-                {msg.content}
-              </div>
-            ))}
-            {isStreaming && (
-              <div className={`${styles.bubble} ${styles.aiBubble}`}>
-                {streamingContent === '' ? (
-                  <span className={styles.thinking}>{t('chat.thinking')}</span>
-                ) : (
-                  <>
-                    {streamingContent}
-                    <span className={styles.cursor}>▋</span>
-                  </>
-                )}
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {suggestions.length > 0 && !isStreaming && (
-            <div className={styles.suggestions}>
-              {suggestions.map((s) => (
-                <button
-                  key={s.actionKey}
-                  className={styles.suggestionPill}
-                  onClick={() => handleSuggestionClick(s.actionKey)}
-                  type="button"
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          )}
-
           <div className={styles.inputArea}>
             <input
               className={styles.input}
@@ -343,6 +329,51 @@ export function ChatbotPanel() {
             >
               {t('chat.sendBtn')}
             </button>
+          </div>
+
+          {suggestions.length > 0 && !isStreaming && (
+            <div className={styles.suggestions}>
+              {suggestions.map((s) => (
+                <button
+                  key={s.actionKey}
+                  className={styles.suggestionPill}
+                  onClick={() => handleSuggestionClick(s.actionKey)}
+                  type="button"
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className={styles.messages}>
+            {!activeProjectId && <p className={styles.hint}>{t('chat.noProject')}</p>}
+            {isLoadingMessages && <p className={styles.hint}>Đang tải tin nhắn...</p>}
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`${styles.bubble} ${msg.role === 'user' ? styles.userBubble : styles.aiBubble}`}
+              >
+                {msg.role === 'assistant' ? (
+                  <MessageContent content={msg.content} citationMap={msg.citationMap} />
+                ) : (
+                  msg.content
+                )}
+              </div>
+            ))}
+            {isStreaming && (
+              <div className={`${styles.bubble} ${styles.aiBubble}`}>
+                {streamingContent === '' ? (
+                  <span className={styles.thinking}>{t('chat.thinking')}</span>
+                ) : (
+                  <>
+                    {streamingContent}
+                    <span className={styles.cursor}>▋</span>
+                  </>
+                )}
+              </div>
+            )}
+            <div ref={messagesEndRef} />
           </div>
         </div>
       </div>

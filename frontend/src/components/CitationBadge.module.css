@@ -1,0 +1,65 @@
+.wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0 4px;
+  border-radius: 4px; /* rounded.sm */
+  background: rgba(37, 99, 235, 0.1); /* accent-blue nhạt */
+  color: var(--accent-blue);
+  font-size: 0.8em;
+  font-weight: 600;
+  cursor: pointer;
+  vertical-align: super;
+  line-height: 1;
+  transition: background 0.15s;
+}
+
+.badge:hover {
+  background: rgba(37, 99, 235, 0.2);
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 1000;
+  min-width: 200px;
+  max-width: 300px;
+  width: max-content;
+  padding: 8px 10px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px; /* rounded.lg */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.tooltipTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tooltipText {
+  font-size: 11px;
+  color: var(--ink-secondary);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.loading,
+.error {
+  font-size: 11px;
+  color: var(--ink-secondary);
+  font-style: italic;
+}

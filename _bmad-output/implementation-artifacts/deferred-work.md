@@ -1,5 +1,13 @@
 # Deferred Work
 
+## Deferred from: code review of story-3.6 (2026-06-17)
+
+- 🟠 **Race nhiều message cùng `thread_id`** — `aget_state(config)` chỉ key theo `thread_id`; hai run đồng thời cùng thread có thể đọc state lẫn nhau → commit `final_content`/`citation_map` sai. Pre-existing (mô hình checkpoint theo thread_id có từ trước 3.6). Cần per-thread lock hoặc chặn gửi khi đang stream. [backend/src/modules/orchestrator/application/use_cases.py:243]
+- 🟠 **Owner scoping không nhất quán** — retrieval scope theo `project_id`, citation-detail scope theo `user_id`; cả hai chặn IDOR cross-user nhưng khác key như AC#9 mô tả. Cố ý theo Dev Notes. [graph.py:79 vs use_cases.py:273]
+- 🟠 **Lỗi embedding tạm thời → zero-vector → chunk tùy ý** — graceful degradation của `embedding_client` (dùng chung với ingestion) khiến lỗi API tạm thời không phân biệt với retrieve thành công; trả NaN-ordered chunk vô nghĩa. Patch query-rỗng chỉ chặn 1 nhánh. [backend/src/modules/ingestion/infrastructure/embedding_client.py:44]
+- 🟡 **Content dạng list (multimodal) → lưu message rỗng, mất lượt** — `final_content=""` khi content không phải str → DB lưu rỗng + frontend drop. Rất hiếm với Gemini text. [backend/src/modules/orchestrator/application/use_cases.py:251]
+- ⚙️ **Process: Story 3.4 & 3.5 `done` nhưng chưa commit** — code (guardrail, citation_router, CitationBadge, MessageContent) nằm chung working tree với 3.6. Nên commit 3.4/3.5 trước rồi 3.6 để git history phản ánh đúng ranh giới story.
+
 ## Deferred from: code review of story-3.2 (2026-06-17)
 
 - **In-memory `run_registry` không hoạt động đa worker** — `send_message` (tạo run+queue) và `GET /stream` (đọc queue) là 2 request riêng; với gunicorn/uvicorn workers > 1 chúng có thể rơi vào process khác nhau → `/stream` không thấy run_id → 404, streaming chết. Spec đã ghi nhận: single-server MVP, chuyển sang Redis Pub/Sub khi scale-out. [backend/src/modules/orchestrator/infrastructure/run_registry.py]
@@ -81,3 +89,7 @@
 - 🟡 gen_random_uuid() cần Postgres 13+/pgcrypto; migration không CREATE EXTENSION (alembic 004,005). Pattern pre-existing 001-003 — xử lý đồng nhất.
 - 🟡 File 0-byte tạo Paper rỗng (use_cases.py:38-67). Tác động thấp.
 - 🟡 Backend confirm không clamp year range đầy đủ (use_cases.py:78-109).
+
+## Deferred from: code review of story 2-7-quan-ly-tai-lieu-xoa-sua-metadata-cache-xem-pdf (2026-06-17)
+
+- 🟡 File-serve `FileResponse(path=paper.file_path)` chưa kiểm tra containment (`Path.resolve()` + `is_relative_to(papers_dir)`) và có TOCTOU giữa `.exists()` và lúc mở file. Defer: `user_id`/`paper_id` là UUID server-sinh nên `file_path` không do người dùng kiểm soát; chỉ là defense-in-depth, nên xử lý chung khi hardening tầng file-serve. [backend/src/modules/ingestion/presentation/router.py:285-289]

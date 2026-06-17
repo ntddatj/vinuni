@@ -13,6 +13,8 @@ inputDocuments:
 
 Tài liệu này cung cấp bảng phân rã chi tiết các Epic và Story cho C2-App-053, chuyển hóa các yêu cầu từ PRD, thiết kế UX (nếu có) và yêu cầu kiến trúc thành các câu chuyện người dùng (stories) có thể triển khai.
 
+> **⚙️ Lưu ý đồng bộ (cập nhật 2026-06-17):** Bảng phân rã story bên dưới đã được **đồng bộ với `_bmad-output/implementation-artifacts/sprint-status.yaml`** — đây là **nguồn sự thật (source of truth)** vì phản ánh đúng những gì đã được triển khai. Trong quá trình thực thi, các story chia nhỏ [Backend]/[Frontend] của bản kế hoạch gốc đã được **gộp thành các story fullstack theo lát cắt dọc (vertical slice)**. Mỗi story dưới đây liệt kê số hiệu thật trong sprint-status, trạng thái hiện tại, và dòng **"Gộp từ kế hoạch cũ"** để truy vết về bản phân rã 38-story ban đầu. **AC chi tiết chính thức của các story đã hoàn thành nằm trong file story tương ứng tại `implementation-artifacts/`** (không lặp lại ở đây để tránh trôi lệch tài liệu).
+
 ## Requirements Inventory
 
 ### Functional Requirements
@@ -84,6 +86,7 @@ NFR4: Background Processing (FastAPI BackgroundTasks cho nạp file ngầm, queu
 - **FR13 (Literature Review Drafting):** Epic 5 - Literature Review Workspace & Settings
 - **FR14 (Export ZIP):** Epic 5 - Literature Review Workspace & Settings
 - **FR15 (Context-Aware Chat Guiding):** Epic 3 - AI Chatbot, RAG & Citation Guardrail
+- **FR16 (Document Lifecycle — Delete & Edit Metadata):** Epic 2 - Academic Search & Paper Ingestion Engine
 
 ## Epic List
 
@@ -109,107 +112,63 @@ Người dùng có thể viết literature review có hỗ trợ gợi ý của 
 
 ---
 
+> **📌 Trạng thái thực thi (đồng bộ từ sprint-status.yaml — 2026-06-17):**
+> Epic 1 ✅ done · Epic 2 ⏳ in-progress (2.1–2.6 done, 2.7 backlog) · Epic 3 ⏳ in-progress (3.1–3.5 done, 3.6 ready-for-dev) · Epic 4 ⏳ backlog · Epic 5 ⏳ backlog
+> Tổng: **28 story** (đã gộp từ 38 story chia nhỏ của bản kế hoạch gốc; +2 story 2.7/3.6 phát sinh trong thực thi; Epic 4 bổ sung Gap Detection backend rồi **gộp còn 5 story 4.1–4.5** (GC gộp vào 4.1) để giảm số lần vibecode — correct-course + Architect 2026-06-17). AC chính thức của story đã hoàn thành nằm ở file story tương ứng trong `implementation-artifacts/`.
+
+---
 
 ## Epic 1: Quản lý Không gian & Nền tảng Xác thực (Workspace & Identity Foundation)
 
 Epic này tập trung vào thiết lập hạ tầng cốt lõi về định danh người dùng và phân quyền, xây dựng giao diện Workspace 3 cột và cơ chế lưu trữ dự án độc lập.
 
-### Story 1.1: [Backend] User Schema & Register API
+### Story 1.1: [Backend] User Schema & Register API — ✅ done
 
-Với vai trò là khách vãng lai,
-Tôi muốn API đăng ký tài khoản,
-Để thông tin của tôi được lưu vào cơ sở dữ liệu và tôi nhận quyền Admin nếu là người đầu tiên.
+API đăng ký tài khoản: lưu `users` với mật khẩu bcrypt, tự gán `role='admin'` cho tài khoản đầu tiên, 400 nếu email trùng.
 
-**Acceptance Criteria:**
+- **Gộp từ kế hoạch cũ:** Story 1.1 (User Schema & Register API).
+- **AC chi tiết:** `implementation-artifacts/1-1-dang-ky-tai-khoan-phan-quyen-admin-khoi-tao.md`
+- **FRs:** FR1.
 
-**Given** payload đăng ký với Email/Password hợp lệ.
-**When** gọi API `POST /api/auth/register`.
-**Then** tạo bản ghi trong bảng `users` với mật khẩu đã mã hóa (bcrypt).
-**And** gán `role='admin'` nếu là tài khoản đầu tiên trong DB, ngược lại gán `role='user'`. Trả về lỗi 400 nếu email tồn tại.
+### Story 1.2: [Backend] Login API & JWT Session — ✅ done
 
-> 🔍 **Cách nghiệm thu trực quan:**
-> Swagger UI. Gọi API `/api/auth/register`, nhập email/pass. Mở Database xem bảng `users` thấy tài khoản vừa tạo có role `admin`.
+API đăng nhập cấp JWT qua HttpOnly cookie (`SameSite=Lax`), chặn 401 các route bảo mật khi thiếu cookie.
 
-### Story 1.2: [Backend] Login API & JWT Session
+- **Gộp từ kế hoạch cũ:** Story 1.2 (Login API & JWT Session).
+- **AC chi tiết:** `implementation-artifacts/1-2-dang-nhap-xac-thuc-bang-httponly-cookie.md`
+- **FRs:** FR1.
 
-Với vai trò là người dùng,
-Tôi muốn API đăng nhập trả về HttpOnly Cookie,
-Để tôi có thể truy cập các đường dẫn (route) bảo mật an toàn.
+### Story 1.3: [Frontend] Auth UI, Onboarding & Khởi tạo Dự án Đầu tiên — ✅ done
 
-**Acceptance Criteria:**
+Giao diện Đăng ký/Đăng nhập + logic first-admin (hiện nút Bánh răng), và luồng onboarding gating tạo dự án đầu tiên khi chưa có dự án.
 
-**Given** email và mật khẩu đúng.
-**When** gọi API `POST /api/auth/login`.
-**Then** Backend cấp 1 token JWT chứa `user_id`.
-**And** trả về client thông qua header `Set-Cookie` (`HttpOnly`, `SameSite=Lax`).
-**And** chặn (401) các request bảo mật nếu không có cookie.
+- **Gộp từ kế hoạch cũ:** Story 1.3 (Auth UI & First-Admin Logic) + UX-DR4 (New User Onboarding).
+- **AC chi tiết:** `implementation-artifacts/1-3-quy-trinh-onboarding-khoi-tao-du-an-dau-tien.md`
+- **FRs:** FR1, FR2. UX-DR4.
 
-> 🔍 **Cách nghiệm thu trực quan:**
-> Swagger UI. Gọi API `/login`. Mở DevTools (F12) -> Application -> Cookies, thấy cookie `access_token` được gán thành công.
+### Story 1.4: [Fullstack] CRUD Dự án Nghiên cứu & Left Sidebar Điều hướng — ✅ done
 
-### Story 1.3: [Frontend] Auth UI & First-Admin Logic
+API CRUD dự án (soft-delete + ghi `sync_outbox`) cùng Sidebar trái hiển thị tối đa 10 dự án gần nhất và Modal tạo dự án cập nhật tức thời.
 
-Với vai trò là khách vãng lai,
-Tôi muốn giao diện Đăng ký / Đăng nhập,
-Để tôi có thể điền thông tin đăng nhập vào hệ thống.
+- **Gộp từ kế hoạch cũ:** Story 1.4 (Project CRUD APIs) + Story 1.5 (Project Sidebar & Creation Modal).
+- **AC chi tiết:** `implementation-artifacts/1-4-crud-du-an-nghien-cuu-left-sidebar-dieu-huong.md`
+- **FRs:** FR2.
 
-**Acceptance Criteria:**
+### Story 1.5: [Frontend] Giao diện 3 Cột, Bộ Chuyển đổi Ngôn ngữ & Chủ đề — ✅ done
 
-**Given** trang Đăng nhập/Đăng ký.
-**When** nhập sai mật khẩu, **Then** hiện Toast báo lỗi 401.
-**When** nhập đúng, **Then** điều hướng vào Dashboard. Nếu là Admin, hiện biểu tượng Bánh răng (Settings) trên Header.
+Layout Workspace 3 cột (Sidebar / Tab giữa / Chatbot Panel co giãn), bộ chuyển VI|EN và Light/Soft-Dark trên Header.
 
-> 🔍 **Cách nghiệm thu trực quan:**
-> Mở Web, điền form đăng nhập. Thấy chuyển trang vào Dashboard và có nút Bánh răng cài đặt góc phải trên cùng.
+- **Gộp từ kế hoạch cũ:** UX-DR1 (Three-Column Layout) + UX-DR2 (Language Toggle) + UX-DR3 (Theme Toggle).
+- **AC chi tiết:** `implementation-artifacts/1-5-giao-dien-3-cot-bo-chuyen-doi-ngon-ngu-chu-de.md`
+- **FRs:** FR2. UX-DR1, UX-DR2, UX-DR3.
 
-### Story 1.4: [Backend] Project CRUD APIs
+### Story 1.6: [Frontend] Trang Quản lý Toàn bộ Dự án Dạng Bảng — ✅ done
 
-Với vai trò là người dùng,
-Tôi muốn các API tạo, đọc, sửa, xóa dự án,
-Để tôi có nơi lưu trữ tài liệu tách biệt.
+Trang quản lý tập trung dạng bảng có tìm kiếm, phân trang, xóa dự án (popup xác nhận).
 
-**Acceptance Criteria:**
-
-**Given** request có chứa JWT cookie hợp lệ.
-**When** gọi `POST /api/projects` với tên dự án.
-**Then** lưu dự án vào DB kèm `user_id`.
-**When** gọi `DELETE /api/projects/{id}`.
-**Then** cập nhật `is_deleted = true` (soft delete) và ghi sự kiện vào `sync_outbox`.
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Swagger UI. Gọi POST tạo dự án, kiểm tra DB thấy dự án mới được tạo có liên kết đúng với `user_id`.
-
-### Story 1.5: [Frontend] Project Sidebar & Creation Modal
-
-Với vai trò là người dùng,
-Tôi muốn thanh Sidebar bên trái hiển thị danh sách dự án,
-Để tôi dễ dàng chọn và tạo dự án mới.
-
-**Acceptance Criteria:**
-
-**Given** đang ở màn hình Dashboard.
-**When** nhìn sang Sidebar trái.
-**Then** thấy danh sách tối đa 10 dự án gần nhất.
-**When** bấm nút "Tạo dự án mới", **Then** hiển thị Modal nhập tên dự án. Bấm "Lưu" gọi API 1.4 và Sidebar cập nhật lập tức.
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Bấm "Tạo dự án mới", nhập tên, bấm Lưu. Ngay lập tức Sidebar bên trái xuất hiện dự án mới mà không cần F5 trang.
-
-### Story 1.6: [Frontend] Centralized Project Management Table
-
-Với vai trò là người dùng,
-Tôi muốn trang quản lý toàn bộ dự án dạng bảng,
-Để tôi có thể tìm kiếm và quản lý số lượng lớn dự án.
-
-**Acceptance Criteria:**
-
-**Given** chọn mục "Tất cả dự án" ở Sidebar.
-**When** màn hình hiển thị.
-**Then** load bảng danh sách tất cả dự án có phân trang.
-**And** có ô tìm kiếm theo tên. Có nút Xóa dự án (hiện popup xác nhận).
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Web UI. Thấy bảng danh sách dự án. Bấm icon Thùng rác, hiện popup "Bạn có chắc chắn?". Bấm OK, dòng đó biến mất.
+- **Gộp từ kế hoạch cũ:** Story 1.6 (Centralized Project Management Table) + UX-DR9.
+- **AC chi tiết:** `implementation-artifacts/1-6-trang-quan-ly-toan-bo-du-an-dang-bang.md`
+- **FRs:** FR2. UX-DR9.
 
 ---
 
@@ -217,171 +176,66 @@ Tôi muốn trang quản lý toàn bộ dự án dạng bảng,
 
 Epic này phát triển công cụ tìm kiếm bài báo khoa học và quản lý quy trình nạp tài liệu tự động và thủ công dưới dạng bất đồng bộ.
 
-### Story 2.1: [Backend] Manual Upload & LLM Metadata Extraction
+### Story 2.1: [BE+FE] Quản lý API Keys Cá nhân — Mã hóa & Bảo mật — ✅ done
 
-Với vai trò là người dùng,
-Tôi muốn upload file PDF tự có của tôi,
-Để AI tự động trích xuất tiêu đề, tác giả.
+Lưu API Keys người dùng mã hóa Fernet trong Postgres, panel quản lý có masking 4 số cuối + Test Connection (spinner, Connected/Failed). Tiền đề cho mọi lời gọi LLM cá nhân hóa (trích xuất metadata, RAG).
 
-**Acceptance Criteria:**
+- **Gộp từ kế hoạch cũ:** Story mới phát sinh trong thực thi (chưa có trong bản 38-story gốc). Hiện thực hóa ARCH-6 + UX-DR12.
+- **AC chi tiết:** `implementation-artifacts/2-1-quan-ly-api-keys-ca-nhan-ma-hoa-bao-mat.md`
+- **FRs:** ARCH-6, UX-DR12.
 
-**Given** file PDF tải lên qua `POST /api/documents/upload`.
-**When** Backend nhận file.
-**Then** lưu file vào ổ cứng/s3. Đọc text 2 trang đầu.
-**And** gọi LLM prompt trích xuất JSON `{title, authors, abstract, year}`.
-**And** trả về client JSON này.
+### Story 2.2: [BE+FE] Tìm kiếm Bài báo Học thuật Song song với Xử lý lỗi Degraded Union — ✅ done
 
-> 🔍 **Cách nghiệm thu trực quan:**
-> Swagger UI. Upload file PDF bất kỳ. Thấy API trả về JSON chứa đúng tên bài báo và tác giả lấy từ trang bìa PDF.
+Gọi song song arXiv + Semantic Scholar (timeout 10s, Tenacity retry), khử trùng lặp theo DOI, "degraded union" khi một nguồn lỗi, và UI hiển thị thẻ kết quả.
 
-### Story 2.2: [Frontend] AI Suggested Metadata Form
+- **Gộp từ kế hoạch cũ:** Story 2.6 (External Search Clients) + Story 2.7 (Parallel Search & Deduplication API) + phần kết quả của Story 2.8 (Search UI).
+- **AC chi tiết:** `implementation-artifacts/2-2-tim-kiem-bai-bao-hoc-thuat-song-song-voi-xu-ly-loi-degraded-union.md`
+- **FRs:** FR3, ARCH-5.
 
-Với vai trò là người dùng,
-Tôi muốn xác nhận thông tin AI trích xuất trước khi lưu,
-Để tôi có thể sửa nếu AI nhận diện sai.
+### Story 2.3: [BE+FE] Gợi ý phân ngành MECE cho chủ đề quá rộng — ✅ done
 
-**Acceptance Criteria:**
+Phát hiện truy vấn rộng theo `BROAD_QUERY_THRESHOLD`, sinh các nút gợi ý phân ngành MECE để thu hẹp tìm kiếm.
 
-**Given** sau khi upload file PDF thành công ở Story 2.1.
-**When** Frontend nhận JSON metadata.
-**Then** bật Modal Form chứa các trường dữ liệu. Gắn badge "AI Suggested".
-**When** người dùng sửa form và bấm "Xác nhận".
-**Then** gọi API đưa file vào luồng Ingestion Task (Story 2.3).
+- **Gộp từ kế hoạch cũ:** Phần broad-query detection của Story 2.8 (Search UI & Broad Query Detection).
+- **AC chi tiết:** `implementation-artifacts/2-3-goi-y-phan-nganh-mece-cho-chu-de-qua-rong.md`
+- **FRs:** FR3.
 
-> 🔍 **Cách nghiệm thu trực quan:**
-> Bấm nút Upload, chọn file. Chờ 2s, bật lên 1 cửa sổ có điền sẵn Tên bài báo. Sửa lại tên theo ý muốn, bấm OK.
+### Story 2.4: [BE+FE] Upload tệp PDF/DOCX thủ công – Trích xuất metadata thông minh — ✅ done
 
-### Story 2.3: [Backend] Background Ingestion Task Foundation
+Upload PDF/DOCX, đọc 2 trang đầu, LLM trích xuất `{title, authors, abstract, year}`, hiển thị Form "AI Suggested" để người dùng xác nhận/sửa.
 
-Với vai trò là hệ thống,
-Tôi muốn một worker queue chạy ngầm để xử lý tài liệu,
-Để API không bị block khi xử lý tệp tin nặng.
+- **Gộp từ kế hoạch cũ:** Story 2.1 (Manual Upload & LLM Metadata Extraction) + Story 2.2 (AI Suggested Metadata Form).
+- **AC chi tiết:** `implementation-artifacts/2-4-upload-tep-pdf-docx-thu-cong-trich-xuat-metadata-thong-minh.md`
+- **FRs:** FR5, NFR2, UX-DR11.
 
-**Acceptance Criteria:**
+### Story 2.5: [BE+FE] Ingestion Bất Đồng Bộ Qua Worker ARQ – Stream Tiến Trình SSE — ✅ done
 
-**Given** FastAPI nhận lệnh nạp tài liệu.
-**When** đẩy job vào queue `arq`.
-**Then** API trả về ngay `{"task_id": "123"}`.
-**And** Worker ngầm bắt đầu tải metadata (nếu từ tìm kiếm) hoặc sử dụng metadata đã xác nhận, thực hiện chia chunk parent-child và lưu vào `pgvector`.
+Đẩy job nạp tài liệu vào worker ARQ; worker chunk parent-child + sinh embedding (Gemini `text-embedding-004`) lưu vào pgvector (HNSW index); stream tiến trình qua SSE để UI vẽ progress bar.
 
-> 🔍 **Cách nghiệm thu trực quan:**
-> Terminal. Xem log của Worker thấy in ra "Processing task 123... Done" trong khi API trả về kết quả lập tức.
+- **Gộp từ kế hoạch cũ:** Story 2.3 (Background Ingestion Task Foundation) + Story 2.4 (SSE Progress Streaming) + Story 2.5 (Ingestion Progress UI).
+- **AC chi tiết:** `implementation-artifacts/2-5-ingestion-bat-dong-bo-qua-worker-arq-stream-tien-trinh-sse.md`
+- **FRs:** FR4, NFR3, NFR4, ARCH-5.
 
-### Story 2.4: [Backend] SSE Progress Streaming
+### Story 2.6: [BE+FE] Kiểm Soát Giới Hạn Số Lượng Tài Liệu – Admin Đặt Ra — ✅ done
 
-Với vai trò là người dùng,
-Tôi muốn API stream trạng thái tiến trình nạp tài liệu,
-Để giao diện (Frontend) có thể vẽ thanh tiến trình.
+Chặn ingestion (search/upload) khi dự án đạt `MAX_PAPERS_PER_PROJECT` (403 + Redis lock chống vượt giới hạn do đua), UI vô hiệu hóa nút "Thêm" và cảnh báo.
 
-**Acceptance Criteria:**
+- **Gộp từ kế hoạch cũ:** Story 2.9 (Document Limit Enforcement).
+- **AC chi tiết:** `implementation-artifacts/2-6-kiem-soat-gioi-han-so-luong-tai-lieu-admin-dat-ra.md`
+- **FRs:** FR11.
 
-**Given** Worker đang chạy.
-**When** Worker cập nhật trạng thái (ví dụ: 10%, 50%, "Đang chia chunk").
-**Then** cập nhật trạng thái vào Redis.
-**When** Frontend kết nối `GET /api/sse/tasks/{id}`.
-**Then** Backend yield các event SSE tuân theo schema cố định sau:
-* Event tiến trình:
-```json
-{
-  "event": "progress",
-  "task_id": "123",
-  "status": "chunking",
-  "percent": 50,
-  "message": "Đang chia chunk"
-}
-```
-* Event hoàn thành:
-```json
-{
-  "event": "completed",
-  "task_id": "123",
-  "document_id": "doc_456"
-}
-```
+### Story 2.7: [BE+FE] Quản lý Tài liệu trong Dự án — Xóa, Sửa Metadata & Cache/Xem PDF Nguồn — ⏳ backlog
 
-> 🔍 **Cách nghiệm thu trực quan:**
-> Dùng lệnh Terminal: `curl -N http://localhost:8000/api/sse/tasks/123`. Thấy console liên tục in ra các event SSE đúng định dạng JSON như trên cho đến khi hoàn thành.
+Lát cắt dọc quản lý vòng đời tài liệu, gộp 2 năng lực trên cùng thực thể `PaperORM` / cùng tab Thư viện:
+1. **Xóa tài liệu**: soft-delete `is_deleted` + ghi `sync_outbox` (Neo4j GC theo ARCH-2) + cascade chunks + **giảm bộ đếm `MAX_PAPERS_PER_PROJECT`** (đồng bộ Redis lock của Story 2.6). Owner scoping chống IDOR.
+2. **Sửa metadata**: PATCH `{title, authors, abstract, year}` của tài liệu đã ingest (KHÔNG re-embed).
+3. **Cache & xem PDF nguồn**: worker persist PDF Open Access đã tải (`paper.file_path` thay vì bỏ sau khi trích text), endpoint bảo mật `GET /api/projects/{project_id}/papers/{paper_id}/file` (FileResponse, mirror ARCH-9) để xem/tải lại không cần gọi lại arXiv/Scholar; paywalled/tải fail → giữ link ngoài + nhãn "nguồn cần trả phí"; tôn trọng NFR2 (20MB).
+4. **UI tab Thư viện**: nút xóa (popup xác nhận) + form sửa metadata + nút "Xem file nguồn".
 
-### Story 2.5: [Frontend] Ingestion Progress UI
-
-Với vai trò là người dùng,
-Tôi muốn thấy thanh tiến trình khi nạp tài liệu,
-Để tôi biết hệ thống đang làm gì.
-
-**Acceptance Criteria:**
-
-**Given** người dùng bấm nút "Xác nhận" (từ Form Metadata) hoặc "Thêm vào dự án" (từ Search).
-**When** nhận sự kiện SSE từ API 2.4.
-**Then** hiển thị Toast hoặc thanh Progress Bar chạy từ 0 đến 100% dựa trên trường `percent` và hiển thị nội dung `message`.
-**When** nhận event `completed`, ẩn progress bar và hiển thị thông báo thành công.
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Web UI. Xác nhận form upload, thấy một thanh tải chạy ở góc phải màn hình hiển thị phần trăm và trạng thái, chạy xong 100% thì báo thành công và cập nhật thư viện.
-
-### Story 2.6: [Backend] External Search Clients (arXiv & Semantic Scholar)
-
-Với vai trò là hệ thống,
-Tôi muốn tích hợp API tìm kiếm của arXiv và Semantic Scholar,
-Để có thể lấy dữ liệu thô từ các nguồn học thuật.
-
-**Acceptance Criteria:**
-
-**Given** từ khóa tìm kiếm.
-**When** gọi function adapter.
-**Then** HTTP Client gửi request đến arXiv và Semantic Scholar với timeout 10s.
-**And** bọc bằng Tenacity (Retry) khi gặp lỗi mạng.
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Chạy script test nhỏ. Nhập từ khóa "LLM", thấy console in ra log trả về danh sách từ arXiv và Semantic Scholar.
-
-### Story 2.7: [Backend] Parallel Search & Deduplication API
-
-Với vai trò là người dùng,
-Tôi muốn API tìm kiếm tổng hợp và loại bỏ bài báo trùng lặp,
-Để kết quả trả về sạch sẽ và nhanh chóng.
-
-**Acceptance Criteria:**
-
-**Given** từ khóa tìm kiếm.
-**When** gọi `GET /api/search?q=keyword`.
-**Then** Backend gọi đồng thời (asyncio.gather) cả 2 hàm ở Story 2.6.
-**And** khử trùng lặp kết quả dựa trên DOI.
-**And** trả về JSON mảng kết quả.
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Swagger UI. Gọi API `/search`, thấy thời gian phản hồi nhanh (< 2s) và trong list kết quả không có 2 bài báo nào trùng DOI.
-
-### Story 2.8: [Frontend] Search UI & Broad Query Detection
-
-Với vai trò là người dùng,
-Tôi muốn ô tìm kiếm và giao diện hiển thị kết quả,
-Để tôi có thể chọn bài báo cần thêm vào dự án.
-
-**Acceptance Criteria:**
-
-**Given** ô tìm kiếm ở tab Thư viện.
-**When** gõ từ khóa "Machine Learning" (truy vấn rất rộng).
-**Then** Backend trả về cờ `is_broad_query = true` và danh sách gợi ý phân ngành MECE (ví dụ: "NLP", "Computer Vision").
-**And** Frontend hiển thị các nút gợi ý này để người dùng bấm vào thu hẹp tìm kiếm. Hiển thị danh sách thẻ bài báo.
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Web UI. Gõ "AI", bấm tìm. Thấy kết quả hiện ra kèm theo 3-4 nút bấm gợi ý phân ngành nhỏ hơn ở trên cùng.
-
-### Story 2.9: [Backend] Document Limit Enforcement
-
-Với vai trò là Quản trị viên (Admin),
-Tôi muốn giới hạn số tài liệu trong 1 dự án theo biến môi trường/cấu hình,
-Để máy chủ (server) không bị quá tải.
-
-**Acceptance Criteria:**
-
-**Given** cấu hình `MAX_PAPERS=15`.
-**When** dự án đã có 15 tài liệu.
-**Then** mọi request Ingestion (Search thêm hoặc Upload thêm) vào dự án này đều trả về HTTP 403.
-**And** Frontend vô hiệu hóa nút "Thêm" và hiện cảnh báo giới hạn.
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Chỉnh config `MAX_PAPERS=1`. Thêm 1 bài báo. Cố gắng thêm bài báo thứ 2, thấy hiển thị thông báo lỗi màu đỏ "Đã đạt giới hạn".
+- **Gộp từ kế hoạch cũ:** Phát sinh trong thực thi (correct-course 2026-06-17). Hợp nhất từ 2.7 (Document CRUD) + 2.8 (Cache PDF) do đồng độ gắn kết cao, theo pattern vertical-slice của dự án. Hiện thực hóa FR16 (mới) + hoàn thiện FR4/FR10 đã cam kết (Story 2.5 chỉ tải PDF để trích text rồi bỏ). Tham chiếu `sprint-change-proposal-2026-06-17-document-management.md`.
+- **Khuyến nghị thực thi:** làm backend trước (DELETE → PATCH → worker persist → serve endpoint) rồi mới UI; viết test ngay cho điểm nóng giảm counter `MAX_PAPERS` (đua Redis).
+- **AC chi tiết:** sẽ tạo qua `bmad-create-story` tại `implementation-artifacts/2-7-quan-ly-tai-lieu-xoa-sua-metadata-cache-xem-pdf.md`.
+- **FRs:** FR16 (mới), FR4, FR10, FR11, NFR2. (Tái dùng pattern ARCH-9.)
 
 ---
 
@@ -389,376 +243,183 @@ Tôi muốn giới hạn số tài liệu trong 1 dự án theo biến môi trư
 
 Epic này phát triển chatbot AI kết hợp RAG và bộ lọc Citation Guardrail chống trích dẫn ảo.
 
-### Story 3.1: [Backend] Chat Session DB & Core APIs
+### Story 3.1: [Backend] Định Tuyến & Quản Lý Phiên Chat với PostgresSaver — ✅ done
 
-Với vai trò là người dùng,
-Tôi muốn tạo phiên chat mới và xem lịch sử chat,
-Để tôi lưu lại mạch suy nghĩ.
+Bảng `chat_threads`/`chat_messages`, API tạo thread & lấy lịch sử, tích hợp LangGraph PostgresSaver làm checkpointer phiên chat.
 
-**Acceptance Criteria:**
+- **Gộp từ kế hoạch cũ:** Story 3.1 (Chat Session DB & Core APIs).
+- **AC chi tiết:** `implementation-artifacts/3-1-dinh-tuyen-quan-ly-phien-chat-voi-postgressaver.md`
+- **FRs:** FR6.
 
-**Given** DB có bảng `chat_threads` và `chat_messages`.
-**When** gọi `POST /api/chat/threads`.
-**Then** tạo thread mới cho user.
-**When** gọi `GET /api/chat/threads/{id}/messages`.
-**Then** trả về danh sách tin nhắn.
+### Story 3.2: Chat RAG Stream Kết Quả Qua Server-Sent Events (SSE) — ✅ done
 
-> 🔍 **Cách nghiệm thu trực quan:**
-> Dùng Swagger UI gọi POST tạo thread, sau đó gọi GET lấy message (list rỗng). Không cần đụng đến UI.
+Khung LangGraph + (hiện tại) Mock RAG node, gửi tin nhắn nhận `run_id`, stream từng chunk câu trả lời qua SSE; UI khung chat + history sidebar + hiệu ứng typewriter "AI is thinking".
 
-### Story 3.2: [Frontend] Chat UI Shell & History Sidebar
+- **Gộp từ kế hoạch cũ:** Story 3.2 (Chat UI Shell & History Sidebar) + Story 3.3 (LangGraph Foundation & Mock RAG) + Story 3.4 (SSE Chat Streaming API).
+- **AC chi tiết:** `implementation-artifacts/3-2-chat-rag-stream-ket-qua-qua-server-sent-events-sse.md`
+- **FRs:** FR6.
+- **⚠️ Ghi chú nợ kỹ thuật:** RAG khởi đầu là **Mock node** (`mock_rag_node`); được thay bằng retriever thật ở **Story 3.6** (pgvector cosine similarity + `citation_map` ordinal→UUID qua SSE).
 
-Với vai trò là người dùng,
-Tôi muốn giao diện khung chat và danh sách lịch sử,
-Để tôi thao tác được với các phiên trò chuyện cũ.
+### Story 3.3: Chatbot Định Hướng Dựa Trên Trạng Thái Dự Án — ✅ done
 
-**Acceptance Criteria:**
+Phân tích state snapshot (`active_tab`, `document_count`, `has_draft`) sinh gợi ý hành động, hiển thị thành Quick Reply pills điều hướng nhanh.
 
-**Given** trang thư viện/dashboard.
-**When** bấm biểu tượng Lịch sử.
-**Then** Popover mở ra hiển thị list threads lấy từ API 3.1.
-**When** bấm vào 1 thread, **Then** load tin nhắn ra khu vực chat chính.
+- **Gộp từ kế hoạch cũ:** Story 3.6 (Context-Aware Suggestion API) + Story 3.7 (Quick Reply Action UI).
+- **AC chi tiết:** `implementation-artifacts/3-3-chatbot-dinh-huong-dua-tren-trang-thai-du-an.md`
+- **FRs:** FR15.
 
-> 🔍 **Cách nghiệm thu trực quan:**
-> Trình duyệt. Bấm biểu tượng Lịch sử. Thấy danh sách. Bấm vào tên, màn hình chính thay đổi (có thể rỗng nếu chưa chat).
+### Story 3.4: Citation Guardrail Node Chống Trích Dẫn Ảo — ✅ done
 
-### Story 3.3: [Backend] LangGraph Foundation & Mock RAG
+Node Guardrail đối chiếu các thẻ `[id]` trong câu trả lời với `valid_citation_ids` của retriever, thay thẻ ảo bằng `[Nguồn không xác định]`; kèm API `GET /api/citations/{chunk_id}` trả `{title, text}`.
 
-Với vai trò là hệ thống,
-Tôi muốn bộ khung LangGraph khởi tạo,
-Để các tính năng RAG phức tạp có nền móng chạy thử.
+- **Gộp từ kế hoạch cũ:** Story 3.8 (Citation Guardrail Node Logic) + Story 3.9 (Citation Detail Fetch API).
+- **AC chi tiết:** `implementation-artifacts/3-4-citation-guardrail-node-chong-trich-dan-ao.md`
+- **FRs:** FR8, FR10.
 
-**Acceptance Criteria:**
+### Story 3.5: Giao Diện Tương Tác Thẻ Trích Dẫn — ✅ done
 
-**Given** Endpoint `POST /api/chat/invoke` (chưa phải SSE).
-**When** gửi câu hỏi.
-**Then** Backend chạy LangGraph Node. Thay vì gọi Vector DB, dùng Dummy Retriever trả về chuỗi text fix cứng.
-**And** trả về câu trả lời JSON đầy đủ ngay lập tức.
+Render `[N]` thành badge `.citation-link` xanh cobalt, hover hiện tooltip (loading → data từ API 3.4 hoặc lỗi gracefully); streaming KHÔNG parse citation.
 
-> 🔍 **Cách nghiệm thu trực quan:**
-> Swagger UI. Gọi API `/invoke` với tin nhắn bất kỳ. Nhận về JSON có chữ "Đây là câu trả lời mock từ hệ thống".
+- **Gộp từ kế hoạch cũ:** Story 3.5 (Typewriter UI & SSE Receiver — phần xác nhận) + Story 3.10 (Interactive Citation Tooltip UI).
+- **AC chi tiết:** `implementation-artifacts/3-5-giao-dien-tuong-tac-the-trich-dan.md`
+- **FRs:** FR10. UX-DR6.
 
-### Story 3.4: [Backend] SSE Chat Streaming API
+### Story 3.6: [BE+FE] Real RAG Retriever — pgvector Similarity & Citation Map qua SSE — ⏳ backlog
 
-Với vai trò là người dùng,
-Tôi muốn gửi tin nhắn và nhận câu trả lời dưới dạng luồng sự kiện,
-Để tôi không phải chờ quá lâu cho câu trả lời dài.
+Thay `mock_rag_node` bằng retriever thật: embed câu hỏi (Gemini `text-embedding-004`), cosine similarity search trên `child_chunks.embedding` (pgvector, scope `project_id`, top-K), sinh câu trả lời có trích dẫn `[N]` bằng LLM (stream token thật qua SSE), trả `valid_citation_ids` (ordinals) cho Citation Guardrail và emit `citation_map` (ordinal→chunk UUID) qua SSE để frontend Story 3.5 hiển thị tooltip thật. Đồng thời sửa lỗi `CitationBadge` đang gửi ordinal vào API `/citations/{uuid}` (422).
 
-**Acceptance Criteria:**
-
-**Given** tin nhắn của người dùng trong một thread.
-**When** gọi `POST /api/chat/threads/{thread_id}/messages` với Body `{ "message": "..." }`.
-**Then** lưu tin nhắn vào database, khởi tạo luồng xử lý RAG và trả về JSON `{"run_id": "run_xxx"}` ngay lập tức.
-**When** Frontend kết nối `GET /api/chat/stream?run_id=run_xxx`.
-**Then** Backend kết nối SSE để yield từng ký tự câu trả lời sinh ra (giả lập hoặc thực tế qua RAG Graph) bằng `Server-Sent Events` mỗi 50ms.
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Swagger UI gọi POST gửi tin nhắn nhận `run_id`. Dùng Terminal: `curl -N http://localhost:8000/api/chat/stream?run_id=run_xxx`. Thấy console liên tục in ra từng dòng `data: {"chunk": "..."}`.
-
-### Story 3.5: [Frontend] Typewriter UI & SSE Receiver
-
-Với vai trò là người dùng,
-Tôi muốn thấy chữ gõ ra từ từ trên giao diện,
-Để tôi biết AI đang gõ phản hồi.
-
-**Acceptance Criteria:**
-
-**Given** người dùng gửi tin nhắn trên UI.
-**When** gọi API POST gửi tin nhắn và nhận được `run_id`.
-**Then** thiết lập kết nối `GET /api/chat/stream?run_id=...`.
-**And** hiển thị icon "AI is thinking..." cho đến khi nhận được chunk đầu tiên.
-**And** chữ xuất hiện dần dần thành hiệu ứng Typewriter. Cập nhật thanh cuộn tự động (auto-scroll).
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Mở Web, gõ tin nhắn, thấy icon xoay xoay rồi chữ hiện dần từng từ mượt mà, cuộn xuống dần nếu dài.
-
-### Story 3.6: [Backend] Context-Aware Suggestion API
-
-Với vai trò là người dùng,
-Tôi muốn AI gợi ý hành động tiếp theo,
-Để tôi không bị bối rối.
-
-**Acceptance Criteria:**
-
-**Given** payload `{"active_tab": "library", "document_count": 0}`.
-**When** gọi `POST /api/chat/suggestions`.
-**Then** LLM Adapter (mock) sinh mảng 3 chuỗi text (ví dụ: `["Upload file PDF", "Search paper", "Help"]`).
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Swagger UI. Truyền JSON `document_count=0`. Xem mảng trả về có đúng gợi ý yêu cầu tải lên tài liệu không.
-
-### Story 3.7: [Frontend] Quick Reply Action UI
-
-Với vai trò là người dùng,
-Tôi muốn bấm nút gợi ý dưới khung chat để điều hướng nhanh,
-Để tôi đỡ phải tìm nút thủ công.
-
-**Acceptance Criteria:**
-
-**Given** mảng text gợi ý từ API 3.6.
-**When** UI hiển thị thành các nút pill/chip.
-**When** click vào nút `"Upload file PDF"`.
-**Then** Frontend điều hướng sang tab Library và mở sẵn Modal Upload.
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Trên Web, thấy 3 nút bấm dưới ô chat. Bấm 1 nút, hệ thống tự động chuyển sang tab Library và hiển thị Modal tương ứng.
-
-### Story 3.8: [Backend] Citation Guardrail Node Logic
-
-Với vai trò là hệ thống,
-Tôi muốn một node chạy Python Regex để kiểm duyệt số trích dẫn,
-Để chống trích dẫn ảo (hallucination).
-
-**Acceptance Criteria:**
-
-**Given** câu trả lời chứa các thẻ trích dẫn dạng `[id]` sinh ra bởi LLM.
-**When** đi qua node Guardrail.
-**Then** hệ thống kiểm chứng danh sách các ID trích dẫn xuất hiện trong câu trả lời đối chiếu với danh sách các chunk ID thực tế được trả về bởi bộ truy vấn (retriever) cho câu hỏi đó (`valid_citation_ids = list of chunk IDs returned by retriever for the current answer`).
-**And** nếu bất kỳ thẻ trích dẫn `[id]` nào không nằm trong danh sách `valid_citation_ids`, thay thế thẻ đó bằng `[Nguồn không xác định]` hoặc gỡ bỏ.
-**Example**: LLM sinh `"Apple is red [1] và blue [99]"` nhưng `valid_citation_ids` chỉ có `[1]`. Node Guardrail biến đổi kết quả thành `"Apple is red [1] và blue [Nguồn không xác định]"`.
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Chạy script test hoặc Swagger. Truyền text chứa `[99]` và giả lập `valid_citation_ids=[1]`. Thấy API trả về text đã bị che thành chữ cảnh báo mà không cần giao diện phức tạp.
-
-### Story 3.9: [Backend] Citation Detail Fetch API
-
-Với vai trò là hệ thống,
-Tôi muốn API trả về nguyên văn đoạn text gốc của trích dẫn,
-Để giao diện (Frontend) có cái để hiển thị.
-
-**Acceptance Criteria:**
-
-**Given** `id=1`.
-**When** gọi `GET /api/citations/1`.
-**Then** truy vấn CSDL lấy bản ghi chunk ID=1.
-**And** trả về JSON `{ "title": "Paper A", "text": "Apple color is red..." }`.
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Gọi API qua Swagger. Truyền ID 1. Nhận về JSON đoạn văn bản.
-
-### Story 3.10: [Frontend] Interactive Citation Tooltip UI
-
-Với vai trò là người dùng,
-Tôi muốn rê chuột vào số `[1]` để xem trích dẫn,
-Để không làm gián đoạn mạch đọc.
-
-**Acceptance Criteria:**
-
-**Given** đoạn chat hiện số `[1]` là một thẻ HTML có class `.citation-link`.
-**When** người dùng hover chuột vào.
-**Then** Frontend gọi API 3.9 và bật popover nhỏ nổi lên chứa dòng chữ "Apple color is red".
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Web UI. Rê chuột vào thẻ màu xanh `[1]`. Một tooltip đen hiện lên chứa 2 dòng chữ. Di chuột ra ngoài thì tooltip biến mất.
+- **Gộp từ kế hoạch cũ:** Hiện thực hóa phần Real RAG của Story 3.3 gốc (LangGraph + RAG), vốn bị tách thành Mock node ở Story 3.2. Gỡ nợ kỹ thuật ghi ở "Khoảng trống đã biết".
+- **Quyết định chốt (correct-course 2026-06-17):** (a) Stream **token thật** từ LLM (`astream`), không giữ giả-stream 50ms; (b) Khi retrieval rỗng → trả câu cố định "Chưa có tài liệu liên quan trong dự án để trích dẫn.", không gọi LLM (chống hallucination).
+- **AC chi tiết:** sẽ tạo qua `bmad-create-story` tại `implementation-artifacts/3-6-real-rag-retriever-pgvector-citation-map-sse.md`. Tham chiếu `sprint-change-proposal-2026-06-17.md`.
+- **FRs:** FR6, FR10, NFR3.
 
 ---
 
 ## Epic 4: Bản đồ Tri thức & Phân tích Đồ thị (Knowledge Graph Synchronization & Exploration)
 
-Epic này trực quan hóa và đồng bộ hóa mạng lưới trích dẫn giữa các bài báo sử dụng Neo4j và Cytoscape.js.
+Epic này trực quan hóa và đồng bộ hóa mạng lưới trích dẫn giữa các bài báo sử dụng Neo4j và Cytoscape.js, đồng thời hiện thực hóa hệ con Gap Detection (FR7) đã mô tả trong `architecture.md` (§5.2, §6.2, §7).
 
-### Story 4.1: [Backend] Neo4j Connection & Base Cypher
+> **🏗️ Thứ tự thực thi & ưu tiên (cốt lõi trước, râu ria sau — Winston/Architect, correct-course 2026-06-17):**
+> Story đã **gộp còn 5 (đánh số tuần tự 4.1–4.5)** để giảm số lần vibecode mà mỗi story vẫn là một slice gọn (cốt lõi 🟢 → trí tuệ/FR7 🟡).
+>
+> | Story | Tier | Phụ thuộc |
+> |---|---|---|
+> | 4.1 Sync Postgres→Neo4j **+ GC** | 🟢 Cốt lõi (+ops ride-along) | — |
+> | 4.2 Knowledge Map UI (đọc+vẽ + Node Detail + sync indicator) | 🟢 Cốt lõi | 4.1 |
+> | 4.3 Graph Extraction (ontology) | 🟡 Trí tuệ (FR7) | 2.5, 4.1 |
+> | 4.4 Gap Detection trên Map (engine + tô viền + bridge→chat) | 🟡 Trí tuệ (FR7) | 4.1, 4.3 |
+> | 4.5 Gap Analyst Agent + Supervisor | 🟡 Trí tuệ (FR7) | 3.6, 4.4 |
+>
+> 🏁 **Milestone sau 4.2:** Knowledge Map tương tác chạy & demo được (FR9 core). · 🏁 **Sau 4.4:** Phát hiện khoảng trống trực quan trên đồ thị (FR7 via map). · 🏁 **Sau 4.5:** FR7 qua chat.
+> Tham chiếu: `sprint-change-proposal-2026-06-17-gap-detection.md`. (Gộp 8→5 story, 2026-06-17: [Cytoscape + Node Detail]→4.2; [Engine + tô viền]→4.4; Extraction→4.3; Agent→4.5; **GC gộp vào 4.1**. **Leiden + community summaries → Phase 2**, gap detection MVP dùng Cypher traversal. Sync-indicator + Graph↔Chat bridge nhúng vào AC 4.2/4.4/4.5.)
 
-Với vai trò là hệ thống,
-Tôi muốn tạo driver kết nối Neo4j,
-Để tôi có thể chạy thử các lệnh Cypher MERGE.
+### Story 4.1: [Backend] Đồng bộ Postgres → Neo4j Event-Driven qua Outbox Worker (+ Garbage Collection) — ⏳ backlog 🟢
 
-**Acceptance Criteria:**
+Driver Neo4j + Cypher MERGE, worker ARQ quét `sync_outbox` (SELECT ... FOR UPDATE SKIP LOCKED + Redis lock theo project_id) dịch event sang Neo4j. **Kèm Garbage Collection:** cronjob 2h sáng xóa cứng dữ liệu `is_deleted=true` quá 7 ngày khỏi Postgres và Neo4j (DETACH DELETE).
 
-**Given** thông tin kết nối Neo4j.
-**When** Backend start lên.
-**Then** tạo Neo4j Driver pool.
-**And** cung cấp API giả lập `POST /api/neo4j/test` để test chạy lệnh Cypher tạo Node tĩnh.
+- **Gộp từ kế hoạch cũ:** Story 4.1 (Neo4j Connection & Base Cypher) + Story 4.2 (Outbox Worker Foundation) + Story 4.3 (Event-Driven Graph Sync) + **Story 4.4 (Graph Garbage Collection)**.
+- **Lưu ý mở rộng (Architect 2026-06-17):** Ngoài Paper/CITES/Author, worker còn đồng bộ **ontology học thuật** (Finding/Limitation + edges `[:CONTRADICTS]`/`[:SUPPORTS]`/`[:HAS_LIMITATION]`/`[:FILLS_GAP]`) do Story 4.3 ghi vào `sync_outbox`.
+- **🔸 GC gộp vào đây (Architect 2026-06-17):** GC dùng chung Neo4j driver + module sync-lifecycle nên gộp tiết kiệm một session. Là phần **"ride-along" không chặn** — làm sau cùng trong story, không ảnh hưởng đường demo (read path). Tôn trọng ARCH-2 (xóa mềm + cron 2h sáng + ngưỡng 7 ngày).
+- **FRs:** FR9, ARCH-8, **ARCH-2**.
 
-> 🔍 **Cách nghiệm thu trực quan:**
-> Swagger UI. Gọi API `/neo4j/test`. Sau đó mở trình duyệt Neo4j Browser (localhost:7474), xem có Node nào vừa sinh ra không.
+### Story 4.2: [BE+FE] Knowledge Map UI — Đọc & Vẽ Đồ thị Cytoscape.js + Node Detail Card — ⏳ backlog 🟢
 
-### Story 4.2: [Backend] Outbox Worker Foundation
+**BE —** endpoint đọc đồ thị từ Neo4j: `GET /api/projects/{project_id}/graph` trả node/edge ban đầu giới hạn **150 nodes / 300 edges** kèm cờ `has_more`; `GET /api/projects/{project_id}/graph/nodes/{node_id}/expand` trả 1-hop lân cận (≤20 thực thể mới). JWT + owner scoping.
+**FE —** Canvas Cytoscape.js zoom/pan, lazy rendering, incremental layout (`fcose`/`cola`) khi expand không xáo trộn node cũ; **Node Detail Card** trượt ra góc trên bên phải khi click node (tiêu đề, tác giả, năm, tóm tắt).
 
-Với vai trò là hệ thống,
-Tôi muốn một worker lắng nghe hàng đợi outbox và dùng Redis Lock,
-Để tôi có bộ khung an toàn để chạy tiến trình đồng bộ.
+- **Gộp:** [4.2 Cytoscape draw] + [4.3 Node Detail Card] cũ — cùng một component canvas → một session liền mạch (gộp 2026-06-17). Truy về kế hoạch 38-story: Story 4.5 (Cytoscape Foundation) + 4.6 (Lazy Expand API) + 4.7 (Interactive Graph UI — Details).
+- **🔸 Bổ sung phủ UX (Architect 2026-06-17 — vá lỗ hổng tab Graph):**
+  - **(A) Endpoint đọc đồ thị** (ở trên) — trước đây thiếu chủ; đổi nhãn story sang **[BE+FE]** vì FE không có gì để vẽ nếu thiếu nó (ARCH §8.4).
+  - **(B) Phân biệt trạng thái node:** node **toàn văn** (đã tải PDF) = xanh lá `state-success` viền đậm; node **chỉ metadata** (paywalled) = vòng tròn nét đứt viền cam `state-warning` (DESIGN §5).
+  - **(C) Mạng lưới tác giả:** render node Author + cạnh `[:AUTHORED]` (tím nét đứt `accent-violet`); cạnh `[:CITES]` xanh `accent-blue` có mũi tên. Có thể thêm toggle ẩn/hiện tác giả (UJ-2, DESIGN §5).
+  - **(D) Chú giải (Legend):** chú thích nhỏ giải nghĩa màu node/cạnh trên canvas.
+  - **(E) Chỉ báo đồng bộ đồ thị (sync indicator):** badge *"Đồ thị đang cập nhật…"* khi còn event `sync_outbox` chưa xử lý cho project (Neo4j *eventual consistency* — đồ thị trễ sau Postgres). Tránh user tưởng mất dữ liệu (đúng triết lý đồng bộ tức thời PRD §1.1).
+  - **(F) Cầu nối Graph→Chat:** trên Node Detail Card thêm nút *"Hỏi AI về bài này"* → gửi tin nhắn chat (dùng khung chat Epic 3) hỏi về bài báo đó. Hiện thực hóa Co-existent Redundant Pathways (PRD §1.1).
+- **Phụ thuộc:** Story 4.1.
+- **FRs:** FR9, ARCH-7, ARCH-9 (owner scoping). UX-DR7.
 
-**Acceptance Criteria:**
+### Story 4.3: [Backend] Graph Extraction — Trích xuất Ontology Học thuật (Stage-2 Ingestion) — ⏳ backlog 🟡
 
-**Given** Worker Arq đang chạy.
-**When** nhận trigger.
-**Then** lấy Lock trên Redis. Print log "Lock acquired".
-**And** thả Lock sau khi xong.
+Hiện thực Giai đoạn 2 pipeline ingest (`gemini-2.5-pro`): từ Markdown đã cấu trúc hóa (GĐ1, Story 2.5), bóc tách Nodes học thuật (Finding`{confidence_score}`, Limitation, Method, Dataset, Topic, Problem) + Edges (`[:HAS_FINDING]`, `[:HAS_LIMITATION]`, `[:CONTRADICTS]`, `[:SUPPORTS]`, `[:FILLS_GAP]`), kèm Author entity resolution. Ghi vào `sync_outbox` để Story 4.1 đẩy sang Neo4j.
 
-> 🔍 **Cách nghiệm thu trực quan:**
-> Terminal. Trigger worker 2 lần liên tục. Thấy worker 1 báo "Lock acquired", worker 2 báo "Locked, skip".
+- **Gộp từ kế hoạch cũ:** Phát sinh trong thực thi (correct-course 2026-06-17). Hiện thực hóa ARCH §6.2 (GĐ2 Graph Extraction) + §5.2 (Graph Schema).
+- **Quyết định kiến trúc (Architect 2026-06-17):** (a) **MỞ RỘNG arq worker của Story 2.5** (module `ingestion`), tái dùng output GĐ1 — KHÔNG dựng worker/pass quét lại tài liệu (chống lãng phí token `gemini-2.5-pro`). (b) **Backfill bắt buộc:** doc đã ingest trước story này thiếu ontology → AC phải có bước re-enqueue extraction cho doc cũ (hoặc chấp nhận chỉ doc mới có graph — ghi rõ). (c) Chốt lại version model khi create-story (doc lệch 1.5 §7 vs 2.5 §6.2).
+- **Phụ thuộc:** Story 2.5 (pipeline + worker arq, đã done), Story 4.1 (sync để hiển thị).
+- **FRs:** FR7, FR9. (ARCH §5.2, §6.2.)
 
-### Story 4.3: [Backend] Event-Driven Graph Sync
+### Story 4.4: [BE+FE] Gap Detection trên Bản đồ — GraphRAG Engine & Tô viền Khoảng trống — ⏳ backlog 🟡
 
-Với vai trò là hệ thống,
-Tôi muốn nối worker 4.2 với Cypher 4.1,
-Để dữ liệu đẩy từ Postgres sang Neo4j thật sự.
+**BE — GraphRAG Engine (Module 1)** trên Neo4j: `gap_detection(project_id)->GapContext` (cụm node cô lập + `[:CONTRADICTS]` + Limitation chưa `[:FILLS_GAP]`, kết hợp tín hiệu RAG), `graph_search(entities, project_id)->GraphContext`; endpoint `GET /api/projects/{project_id}/graph/gaps`.
+**FE —** chế độ "Tìm khoảng trống nghiên cứu" tô viền đỏ nhấp nháy (`[:CONTRADICTS]`) / vàng (cụm cô lập) trên canvas Cytoscape, dựa trên endpoint trên.
 
-**Acceptance Criteria:**
+- **Gộp:** [4.5 GraphRAG Engine] + [4.6 tô viền gap] cũ — vertical slice BE endpoint + đúng FE tiêu thụ, test end-to-end ngay (gộp 2026-06-17). Hiện thực hóa ARCH §5.2 (Module 1 API) + phần gap-highlight của Story 4.7 gốc (38-story).
+- **🔸 Phạm vi MVP (Architect, cập nhật 2026-06-17):** Gap detection cốt lõi chạy bằng **Cypher traversal** (cụm cô lập, CONTRADICTS, Limitation chưa FILLS_GAP) — đủ cho FR7. **Leiden community detection + Hierarchical Community Summaries + `community_summary_search` chuyển sang Phase 2** (xem cuối tài liệu) vì là enhancement GraphRAG, phức tạp hơn mức cần cho MVP. `graph_search` (Cypher neighborhood) GIỮ ở MVP để phục vụ Story 4.5.
+- **Lưu ý kiến trúc:** Quy mô đồ thị chặn trên bởi `MAX_PAPERS_PER_PROJECT=15` → Cypher traversal rất rẻ. Cypher scope `project_id` chống IDOR.
+- **🔸 Cầu nối Gap→Chat (Architect 2026-06-17):** click viền cảnh báo (node/cụm) → nút *"Giải thích khoảng trống này"* mở chat với câu hỏi tương ứng → Gap Analyst Agent (Story 4.5) trả lời có nguồn. Nếu 4.5 chưa xong, fallback gửi câu hỏi vào chat RAG thường.
+- **Phụ thuộc:** Story 4.1 (Neo4j có dữ liệu), Story 4.3 (ontology).
+- **FRs:** FR7, FR9. UX-DR7. (ARCH §5.2.)
 
-**Given** một record `sync_outbox` xuất hiện trong Postgres.
-**When** Worker quét được.
-**Then** dịch dữ liệu đó sang lệnh MERGE và lưu thành công vào Neo4j.
+### Story 4.5: [BE+FE] Gap Analyst Agent & Supervisor Routing trong LangGraph — ⏳ backlog 🟡
 
-> 🔍 **Cách nghiệm thu trực quan:**
-> Insert 1 dòng thủ công vào bảng `sync_outbox` trong DBeaver. Vài giây sau mở Neo4j xem node có tự mọc lên không.
+Tiến hóa orchestrator (sau Story 3.6) từ single RAG node sang topology Router-Worker (ARCH §7.1): Supervisor định tuyến → Research&RAG Agent hoặc Gap Analyst Agent. Gap Analyst Agent gọi `gap_detection_tool` + `graph_search_tool` (Story 4.4), sinh câu trả lời mâu thuẫn/hạn chế **chỉ rõ nguồn `[N]`** (FR7) qua Citation Guardrail (Story 3.4). Research&RAG Agent bổ sung `graph_search` vào fusion context (ARCH §7.4).
 
-### Story 4.4: [Backend] Graph Garbage Collection
+- **Gộp từ kế hoạch cũ:** Phát sinh trong thực thi (correct-course 2026-06-17). Hiện thực hóa ARCH §7.1, §7.2, §7.4.
+- **Quyết định kiến trúc (Architect 2026-06-17):** Cân nhắc **router nhẹ/lazy** — RAG là nhánh mặc định, chỉ rẽ Gap Analyst khi intent "khoảng trống/mâu thuẫn" rõ ràng, để **giữ SM-3 (first-chunk < 3s)** không bị thêm 1 hop LLM phân loại đầy đủ. Tích hợp nặng nhất Epic 4 → để cuối nhóm trí tuệ.
+- **🔸 Cầu nối Gap→Chat (Architect 2026-06-17):** Gap Analyst Agent là backend cho nút *"Giải thích khoảng trống này"* (Story 4.4) và *"Hỏi AI về bài này"* (Story 4.2) — đảm bảo trả lời gap qua chat có nguồn `[N]`.
+- **Phụ thuộc:** Story 3.6 (real RAG node + SSE protocol), Story 4.4 (gap_detection/graph_search tools).
+- **FRs:** FR6, FR7. (ARCH §7.)
 
-Với vai trò là hệ thống,
-Tôi muốn cronjob dọn rác,
-Để dữ liệu không phình to.
-
-**Acceptance Criteria:**
-
-**Given** tài liệu đã bị xóa mềm `is_deleted=true` quá 7 ngày.
-**When** Cronjob chạy lúc 2h sáng.
-**Then** xóa hẳn khỏi Postgres và Neo4j.
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Sửa data thành ngày xóa là 1 tháng trước. Chạy thủ công Cronjob. Reload DBeaver thấy data biến mất.
-
-### Story 4.5: [Frontend] Cytoscape.js Foundation
-
-Với vai trò là người dùng,
-Tôi muốn xem màn hình vẽ đồ thị cơ bản,
-Để tôi có không gian trực quan.
-
-**Acceptance Criteria:**
-
-**Given** truy cập tab Bản đồ.
-**When** component render.
-**Then** vẽ 1 đồ thị mock tĩnh có 3 node và 2 edge bằng Cytoscape. Có thể zoom/kéo thả.
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Mở Web, vào tab Bản đồ. Thấy 3 nút tròn (nodes) nối với nhau. Rê chuột kéo thả để di chuyển các nút tròn dễ dàng.
-
-### Story 4.6: [Backend] Lazy Graph Expand API
-
-Với vai trò là người dùng,
-Tôi muốn API lấy node lân cận,
-Để tôi có thể xem các trích dẫn của 1 nút (node).
-
-**Acceptance Criteria:**
-
-**Given** ID node.
-**When** gọi `GET /api/graph/expand/{id}`.
-**Then** truy vấn Neo4j lấy 1-hop trả về JSON chuẩn cytoscape.
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Gọi API qua Swagger. Nhận về danh sách JSON Nodes, Edges.
-
-### Story 4.7: [Frontend] Interactive Graph UI (Expand & Details)
-
-Với vai trò là người dùng,
-Tôi muốn tương tác đồ thị thật,
-Để tôi khám phá được mạng lưới.
-
-**Acceptance Criteria:**
-
-**Given** đồ thị đang hiển thị.
-**When** double-click vào node.
-**Then** gọi API 4.6, vẽ thêm node lân cận.
-**When** bật nút highlight.
-**Then** tô viền đỏ cho node mâu thuẫn.
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Trên Web. Nhấp đúp chuột trái vào 1 nút tròn (node), thấy nó hiển thị thêm các nút con liên kết.
+> **ℹ️ Garbage Collection (ARCH-2)** đã **gộp vào Story 4.1** (cùng module sync/Neo4j-lifecycle) — xem Story 4.1.
 
 ---
 
-## Epic 5: Soạn thảo Tổng quan & Cấu hình Hệ thống (Overview Writing & Settings)
+## Epic 5: Soạn thảo Tổng quan & Cấu hình Hệ thống (Literature Review Workspace & Settings)
 
 Epic này phát triển không gian soạn thảo nháp, xuất báo cáo và trang cấu hình hệ thống dành cho Admin.
 
-### Story 5.1: [Backend] Draft Versioning API
+### Story 5.1: [BE+FE] Soạn thảo Literature Review & Quản lý Bản thảo — ⏳ backlog
 
-Với vai trò là người dùng,
-Tôi muốn API CRUD bản nháp,
-Để bản nháp của tôi được lưu vào cơ sở dữ liệu.
+Rich editor (Tiptap/Quill), API CRUD bản nháp, auto-save mỗi 10s + chỉ báo trạng thái "Đã lưu".
 
-**Acceptance Criteria:**
+- **Gộp từ kế hoạch cũ:** Story 5.1 (Draft Versioning API) + Story 5.2 (Rich Text Editor Foundation) + Story 5.3 (Auto-save & History UI).
+- **FRs:** FR13.
 
-**Given** text bản nháp.
-**When** gọi `POST /api/drafts`.
-**Then** lưu vào DB `drafts`.
+### Story 5.2: [BE+FE] Đóng gói & Xuất Bản thảo chuẩn Markdown + BibTeX — ⏳ backlog
 
-> 🔍 **Cách nghiệm thu trực quan:**
-> Swagger UI. Gọi POST. Kiểm tra DB thấy text.
+API gom text + bib nén `export.zip` (Markdown .md + BibTeX .bib) trả File Stream, kèm nút "Xuất file" tải về.
 
-### Story 5.2: [Frontend] Rich Text Editor Foundation
+- **Gộp từ kế hoạch cũ:** Story 5.4 (ZIP Export API) + Story 5.5 (Export Button).
+- **FRs:** FR14.
 
-Với vai trò là người dùng,
-Tôi muốn bộ soạn thảo chữ,
-Để tôi gõ được văn bản in đậm, in nghiêng.
+### Story 5.3: [BE+FE] Cài đặt Hệ thống Động của Admin – Lưu Cơ sở Dữ liệu — ⏳ backlog
 
-**Acceptance Criteria:**
+Trang Admin Settings chỉnh tham số động (`MAX_PAPERS_PER_PROJECT`, `BROAD_QUERY_THRESHOLD`, `MAX_UPLOAD_SIZE_MB`...), PATCH lưu Postgres không restart; user thường nhận 403.
 
-**Given** trang Soạn thảo.
-**When** mở trang.
-**Then** render trình soạn thảo (Tiptap/Quill). Gõ chữ được.
+- **Gộp từ kế hoạch cũ:** Story 5.6 (Admin Settings Management).
+- **Bổ sung (correct-course 2026-06-17):** Đưa `MAX_UPLOAD_SIZE_MB` vào danh sách key động — hiện đang là biến môi trường tĩnh `max_upload_size_mb=20` ([settings.py:65](backend/src/shared/infra/settings.py#L65)), chưa nằm trong `system_settings`. Hoàn thiện FR12 (PRD đã hứa "kích thước file upload tối đa" là setting động). Mặc định giữ 20MB (NFR2); Admin tự nâng tay sau khi story xong.
+- **FRs:** FR12. UX-DR10.
 
-> 🔍 **Cách nghiệm thu trực quan:**
-> Mở web, gõ chữ, bôi đen, bấm Ctrl+B thấy chữ in đậm.
+### Story 5.4: [Frontend] Trang Landing Page Vãng lai & Bản Demo Mô phỏng — ⏳ backlog
 
-### Story 5.3: [Frontend] Auto-save & History UI
+Landing page cuộn dọc: Hero banner, interactive demo simulator 3 cột, pricing table gói Student/Researcher.
 
-Với vai trò là người dùng,
-Tôi muốn hệ thống tự lưu mỗi 10s,
-Để tôi không sợ mất dữ liệu.
+- **Gộp từ kế hoạch cũ:** Story mới phát sinh trong thực thi (chưa có trong bản 38-story gốc). Hiện thực hóa UX-DR5 + UX-DR8.
+- **FRs:** UX-DR5, UX-DR8.
 
-**Acceptance Criteria:**
+---
 
-**Given** đang gõ text.
-**When** dừng tay 10s.
-**Then** tự động gọi API 5.1 lưu. Chữ "Đã lưu" nhấp nháy góc phải.
+## Khoảng trống đã biết (Known Gaps — chưa có story)
 
-> 🔍 **Cách nghiệm thu trực quan:**
-> Web UI. Gõ xong ngừng gõ chữ/thao tác trong 10 giây, nhìn góc phải thấy dòng chữ trạng thái "Đang lưu..." hiện lên.
+> Ghi nhận trong lúc đồng bộ tài liệu (2026-06-17) để phục vụ việc tạo story mới.
 
-### Story 5.4: [Backend] ZIP Export API
+- **Real RAG Retrieval Node (thay `mock_rag_node`):** ✅ **Đã tạo Story 3.6** (correct-course 2026-06-17) để hiện thực hóa — pgvector cosine similarity trên `child_chunks.embedding`, trả `valid_citation_ids` (ordinals) cho Citation Guardrail, và emit `citation_map` (ordinal→chunk UUID) qua SSE cho tooltip. Đồng thời sửa lỗi 422 do `CitationBadge` gửi ordinal thay vì UUID vào `/api/citations/{uuid}`. Xem Epic 3 — Story 3.6 và `sprint-change-proposal-2026-06-17.md`. Liên quan FR6, FR10, NFR3.
 
-Với vai trò là người dùng,
-Tôi muốn API xuất file,
-Để tôi tải được tệp tin về máy.
+- **Gap Detection Backend (FR7) — Graph Extraction / GraphRAG Engine / Gap Analyst Agent:** ✅ **Đã tạo Story 4.3 (Graph Extraction), 4.4 (GraphRAG Engine + tô viền gap), 4.5 (Gap Analyst Agent)** (correct-course + Architect review 2026-06-17, sau gộp 8→6 story) để hiện thực hóa hệ con ontology học thuật (Finding/Limitation + edges CONTRADICTS/SUPPORTS/HAS_LIMITATION/FILLS_GAP), `gap_detection`/`graph_search` (Cypher traversal; Leiden communities → Phase 2), và agent phân tích khoảng trống qua chat. Trước đó Epic 4 chỉ phủ FR9 (vẽ), thiếu toàn bộ phần *sinh* dữ liệu khoảng trống mà `architecture.md` (§5.2, §6.2, §7) đã mô tả. Knowledge Map UI (Cytoscape + Node Detail) gộp thành Story 4.2. Xem Epic 4 và `sprint-change-proposal-2026-06-17-gap-detection.md`. Liên quan FR7, FR9.
 
-**Acceptance Criteria:**
+---
 
-**Given** ID bản nháp.
-**When** gọi `GET /api/drafts/{id}/export`.
-**Then** Backend gom text + bib, nén thành `export.zip`, trả về dạng File Stream.
+## Hoãn sang Phase 2 (Deferred — ngoài phạm vi MVP)
 
-> 🔍 **Cách nghiệm thu trực quan:**
-> Swagger UI. Gọi GET. Trình duyệt tự tải 1 file `export.zip` về, mở ra xem có 2 file bên trong không.
+> Ghi nhận để không mất dấu; sẽ tạo story khi mở Phase 2.
 
-### Story 5.5: [Frontend] Export Button
-
-Với vai trò là người dùng,
-Tôi muốn bấm nút để tải,
-Để không cần gọi API.
-
-**Acceptance Criteria:**
-
-**Given** góc trái màn hình soạn thảo.
-**When** bấm "Xuất file".
-**Then** tự động gọi API 5.4 và tải ZIP về.
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Bấm nút trên giao diện, trình duyệt hiển thị thanh download tải file.
-
-### Story 5.6: [FE+BE] Admin Settings Management
-
-Với vai trò là Quản trị viên (Admin),
-Tôi muốn thay đổi cấu hình giới hạn,
-Để hệ thống linh hoạt.
-
-**Acceptance Criteria:**
-
-**Given** trang Settings.
-**When** sửa ô `MAX_PAPERS` = 10, bấm Lưu.
-**Then** gọi API PATCH `/api/settings` lưu DB. User thường sửa sẽ báo 403.
-
-> 🔍 **Cách nghiệm thu trực quan:**
-> Đăng nhập Admin, đổi số 15 thành 10 trên UI. Mở cửa sổ ẩn danh đăng nhập User thường thì không thấy menu đó.
-
+- **Leiden Community Detection + Hierarchical Community Summaries + `community_summary_search` (GraphRAG Communities):** Hoãn từ Story 4.4 sang **Phase 2** (quyết định Dat + Architect, 2026-06-17) vì phức tạp hơn mức cần cho MVP. Gap detection MVP (Story 4.4) đã đủ FR7 bằng **Cypher traversal** (cụm cô lập + CONTRADICTS + Limitation chưa FILLS_GAP). Khi mở Phase 2: thêm worker ngầm chạy Leiden gom Community + `gemini-1.5-flash` tóm tắt phân cấp, lưu ngược Neo4j, và API `community_summary_search` cho GraphRAG dual-level retrieval. Tham chiếu ARCH §5.2 (Graph Indexing).

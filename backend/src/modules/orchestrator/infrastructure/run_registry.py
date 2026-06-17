@@ -1,17 +1,17 @@
 import asyncio
 
-_registry: dict[str, asyncio.Queue[str | None]] = {}
+_registry: dict[str, asyncio.Queue[dict | None]] = {}
 _owners: dict[str, str] = {}
 
 
-def create_run(run_id: str, user_id: str) -> asyncio.Queue[str | None]:
-    queue: asyncio.Queue[str | None] = asyncio.Queue()
+def create_run(run_id: str, user_id: str) -> asyncio.Queue[dict | None]:
+    queue: asyncio.Queue[dict | None] = asyncio.Queue()
     _registry[run_id] = queue
     _owners[run_id] = user_id
     return queue
 
 
-def get_run_queue(run_id: str) -> asyncio.Queue[str | None] | None:
+def get_run_queue(run_id: str) -> asyncio.Queue[dict | None] | None:
     return _registry.get(run_id)
 
 

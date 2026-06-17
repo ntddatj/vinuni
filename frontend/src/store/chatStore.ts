@@ -15,7 +15,7 @@ interface ChatState {
   setMessages: (messages: ChatMessage[]) => void;
   appendChunk: (chunk: string) => void;
   beginStreaming: () => void;
-  commitStreamingMessage: () => void;
+  commitStreamingMessage: (cleanedContent?: string, citationMap?: Record<string, string>) => void;
   setLoadingThreads: (v: boolean) => void;
   setLoadingMessages: (v: boolean) => void;
   setStreaming: (v: boolean) => void;
@@ -57,8 +57,10 @@ export const useChatStore = create<ChatState>()((set, get) => ({
 
   beginStreaming: () => set({ isStreaming: true, streamingContent: '' }),
 
-  commitStreamingMessage: () => {
-    const content = get().streamingContent;
+  commitStreamingMessage: (cleanedContent?: string, citationMap?: Record<string, string>) => {
+    // Dùng cleanedContent từ SSE done event (đã qua guardrail) nếu có,
+    // fallback về streamingContent (bản chưa clean) cho backward compat
+    const content = cleanedContent ?? get().streamingContent;
     // Luôn reset trạng thái streaming kể cả khi content rỗng,
     // nếu không isStreaming sẽ kẹt true và khoá input vĩnh viễn.
     if (!content) {
@@ -71,6 +73,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       role: 'assistant',
       content,
       createdAt: new Date().toISOString(),
+      citationMap,
     };
     set((s) => ({
       messages: [...s.messages, assistantMsg],

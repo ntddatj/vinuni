@@ -166,9 +166,17 @@ async def stream_chat(
         while True:
             item = await queue.get()
             if item is None:
+                # Exception fallback: emit done không có content rồi thoát
                 yield f"data: {json.dumps({'event': 'done'})}\n\n"
                 break
-            yield f"data: {json.dumps({'chunk': item})}\n\n"
+            t = item.get("type")
+            if t == "chunk":
+                yield f"data: {json.dumps({'chunk': item['data']})}\n\n"
+            elif t == "citation_map":
+                yield f"data: {json.dumps({'event': 'citation_map', 'data': item['data']})}\n\n"
+            elif t == "done":
+                yield f"data: {json.dumps({'event': 'done', 'content': item.get('content', '')})}\n\n"
+                break
 
     return StreamingResponse(
         event_generator(),
