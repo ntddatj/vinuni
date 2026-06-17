@@ -1,5 +1,6 @@
 # Core
 fastapi>=0.115.0
+python-multipart>=0.0.12
 uvicorn[standard]>=0.34.0
 pydantic[email]>=2.10.0
 pydantic-settings>=2.7.0
@@ -16,6 +17,10 @@ bcrypt>=4.2.0
 pyjwt>=2.10.0
 cryptography>=44.0.0
 langchain-google-genai>=2.0.0
+
+# Document parsing
+PyMuPDF>=1.24.0
+mammoth>=1.9.0
 
 # Dev tools
 ruff>=0.8.0

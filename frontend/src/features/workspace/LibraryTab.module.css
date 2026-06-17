@@ -202,3 +202,20 @@
 .suggestionChip:hover {
   background: rgba(37, 99, 235, 0.1);
 }
+
+.uploadButton {
+  background: var(--surface-raised);
+  color: var(--ink-primary);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--rounded-md);
+  padding: 8px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s ease;
+}
+
+.uploadButton:hover {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}

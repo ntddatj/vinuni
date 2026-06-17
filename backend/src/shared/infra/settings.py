@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     # Search
     broad_query_threshold: int = 50
 
+    # File Upload
+    upload_dir: str = "data/uploads"
+    max_upload_size_mb: int = 20
+
     # AI / LLM
     gemini_api_key: str = ""
     fernet_secret_key: str = ""

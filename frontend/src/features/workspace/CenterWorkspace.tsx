@@ -47,7 +47,7 @@ export function CenterWorkspace() {
 
       <div className={styles.tabContent}>
         <div style={{ display: activeTab === 'library' ? 'block' : 'none' }}>
-          <LibraryTab />
+          <LibraryTab projectId={activeProjectId} />
         </div>
         <div style={{ display: activeTab === 'graph' ? 'block' : 'none' }}>
           <p className={styles.placeholder}>{t('tab.graph')}</p>

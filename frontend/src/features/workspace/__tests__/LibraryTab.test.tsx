@@ -26,11 +26,11 @@ const MOCK_RESULT = {
   suggestions: [],
 };
 
-function renderTab() {
+function renderTab(projectId: string | null = null) {
   return render(
     <MemoryRouter>
       <Toaster />
-      <LibraryTab />
+      <LibraryTab projectId={projectId} />
     </MemoryRouter>
   );
 }

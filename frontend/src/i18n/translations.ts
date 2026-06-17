@@ -65,6 +65,20 @@ export const translations = {
   'search.addComingSoon': { vi: 'Chức năng sẽ có ở Story 2.5', en: 'Feature coming in Story 2.5' },
   'search.suggestionAriaLabel': { vi: 'Gợi ý phân ngành', en: 'Subfield suggestions' },
   'search.broadQueryHint': { vi: 'Chủ đề quá rộng — thử thu hẹp:', en: 'Topic too broad — try narrowing:' },
+  'upload.button': { vi: 'Upload Tài liệu', en: 'Upload Document' },
+  'upload.modalTitle': { vi: 'Xác nhận Thông tin Tài liệu', en: 'Confirm Document Info' },
+  'upload.fieldTitle': { vi: 'Tiêu đề', en: 'Title' },
+  'upload.fieldAuthors': { vi: 'Tác giả (phân cách bằng dấu phẩy)', en: 'Authors (comma-separated)' },
+  'upload.fieldYear': { vi: 'Năm xuất bản', en: 'Publication Year' },
+  'upload.fieldAbstract': { vi: 'Tóm tắt', en: 'Abstract' },
+  'upload.aiBadge': { vi: 'AI Suggested', en: 'AI Suggested' },
+  'upload.confirm': { vi: 'Xác nhận', en: 'Confirm' },
+  'upload.cancel': { vi: 'Hủy', en: 'Cancel' },
+  'upload.extracting': { vi: 'Đang trích xuất metadata...', en: 'Extracting metadata...' },
+  'upload.successToast': { vi: 'Đã thêm vào hàng đợi xử lý', en: 'Added to processing queue' },
+  'upload.errorToast': { vi: 'Lỗi upload tài liệu. Vui lòng thử lại.', en: 'Document upload failed. Please try again.' },
+  'upload.fileTooLarge': { vi: 'File vượt quá giới hạn 20MB', en: 'File exceeds 20MB limit' },
+  'upload.unsupportedType': { vi: 'Chỉ hỗ trợ định dạng PDF và DOCX', en: 'Only PDF and DOCX formats are supported' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

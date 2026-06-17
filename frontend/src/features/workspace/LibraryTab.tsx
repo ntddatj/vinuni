@@ -6,12 +6,18 @@ import type { TranslationKey } from '@/i18n/translations';
 import { useTranslation } from '@/i18n/useTranslation';
 import type { PaperResult, SearchResponse } from '@/types/search';
 import styles from './LibraryTab.module.css';
+import { UploadModal } from './UploadModal';
 
-export function LibraryTab() {
+interface LibraryTabProps {
+  projectId: string | null;
+}
+
+export function LibraryTab({ projectId }: LibraryTabProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<SearchResponse | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
   const searchIdRef = useRef(0);
 
   async function handleSearch() {
@@ -93,7 +99,26 @@ export function LibraryTab() {
         >
           {isSearching ? t('search.searching') : t('search.searchButton')}
         </button>
+        {projectId && (
+          <button
+            type="button"
+            className={styles.uploadButton}
+            onClick={() => setShowUpload(true)}
+          >
+            {t('upload.button')}
+          </button>
+        )}
       </div>
+
+      {showUpload && projectId && (
+        <UploadModal
+          projectId={projectId}
+          onClose={() => setShowUpload(false)}
+          onSuccess={(_documentId) => {
+            setShowUpload(false);
+          }}
+        />
+      )}
 
       {searchResult?.isBroadQuery && searchResult.suggestions.length > 0 && (
         <BroadQuerySuggestions

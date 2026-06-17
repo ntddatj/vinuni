@@ -45,3 +45,12 @@
 - `detect()` vẫn được gọi khi cả 2 nguồn lỗi / khi threshold cấu hình âm có thể bắn LLM mỗi query. Low impact vì threshold mặc định 50 đã chặn. [broad_query_detector.py:39, use_cases.py:63]
 - Heuristic `total == 0 → len(papers)` ở cả ArxivClient và SemanticScholarClient che giấu trường hợp "thiếu field totalResults" vs "zero thật"; total âm không được guard. Một broad query mà nguồn thiếu field total sẽ không bao giờ được flag broad. Phụ thuộc upstream API, ít xảy ra. [arxiv_client.py:105, semantic_scholar_client.py:35]
 - Translation key `search.broadQueryHint` đã thêm nhưng không render ở đâu (orphaned key). Cleanup UX — AC#2 chỉ yêu cầu chip, không yêu cầu hint text. [frontend/src/i18n/translations.ts:67]
+
+## Deferred from: code review of story-2.4 (2026-06-17)
+
+- 🟠 MIME spoofing — chỉ validate extension, không kiểm magic bytes (use_cases.py:42-45). Spec cố ý dùng extension; content-sniffing là hardening, rủi ro thấp nhờ graceful fallback.
+- 🟠 Orphaned files — uploaded_files ghi disk + commit trước confirm; không TTL/cleanup (use_cases.py:47-61). Liên quan Story 2.5 worker.
+- 🟡 Double-confirm tạo duplicate Paper trên cùng file_id, thiếu idempotency (use_cases.py:78-109).
+- 🟡 gen_random_uuid() cần Postgres 13+/pgcrypto; migration không CREATE EXTENSION (alembic 004,005). Pattern pre-existing 001-003 — xử lý đồng nhất.
+- 🟡 File 0-byte tạo Paper rỗng (use_cases.py:38-67). Tác động thấp.
+- 🟡 Backend confirm không clamp year range đầy đủ (use_cases.py:78-109).
