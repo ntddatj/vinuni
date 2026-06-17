@@ -1,9 +1,21 @@
+from sqlalchemy import func as sa_func
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.src.modules.ingestion.domain.entities import Paper, UploadedFile
 from backend.src.modules.ingestion.infrastructure.orm_models import PaperORM, UploadedFileORM
 from backend.src.modules.workspace.infrastructure.orm_models import ProjectORM
+
+
+async def count_papers_by_project(db: AsyncSession, project_id: str) -> int:
+    """Đếm số papers chưa xóa trong dự án (mọi trạng thái)."""
+    result = await db.execute(
+        select(sa_func.count(PaperORM.id)).where(
+            PaperORM.project_id == project_id,
+            PaperORM.is_deleted.is_(False),
+        )
+    )
+    return result.scalar_one()
 
 
 async def is_project_owned_by_user(db: AsyncSession, project_id: str, user_id: str) -> bool:
@@ -72,3 +84,60 @@ class PostgresPaperRepository:
         self._db.add(orm)
         await self._db.flush()
         return entity
+
+    async def save_search_paper(
+        self,
+        *,
+        paper_id: str,
+        project_id: str,
+        user_id: str,
+        title: str,
+        authors: list[str],
+        abstract: str | None,
+        year: int | None,
+        source: str,
+        doi: str | None,
+        arxiv_id: str | None,
+        url: str | None,
+        pdf_url: str | None,
+        status: str = "pending",
+    ) -> str:
+        """Lưu paper từ kết quả tìm kiếm (kèm doi/arxiv_id/url/pdf_url). Trả về paper_id."""
+        orm = PaperORM(
+            id=paper_id,
+            project_id=project_id,
+            user_id=user_id,
+            title=title,
+            authors=authors,
+            abstract=abstract,
+            year=year,
+            source=source,
+            doi=doi,
+            arxiv_id=arxiv_id,
+            url=url,
+            pdf_url=pdf_url,
+            status=status,
+        )
+        self._db.add(orm)
+        await self._db.flush()
+        return paper_id
+
+    async def list_by_project(self, project_id: str, user_id: str) -> list[PaperORM]:
+        """Danh sách paper chưa xoá của project (mới nhất trước). Validate ownership trước khi gọi."""
+        result = await self._db.execute(
+            select(PaperORM)
+            .where(
+                PaperORM.project_id == project_id,
+                PaperORM.user_id == user_id,
+                PaperORM.is_deleted.is_(False),
+            )
+            .order_by(PaperORM.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def find_owned_by_user(self, paper_id: str, user_id: str) -> PaperORM | None:
+        """Trả về PaperORM nếu thuộc về user (chống IDOR cho SSE ticket)."""
+        result = await self._db.execute(
+            select(PaperORM).where(PaperORM.id == paper_id, PaperORM.user_id == user_id)
+        )
+        return result.scalar_one_or_none()

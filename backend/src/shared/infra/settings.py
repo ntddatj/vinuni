@@ -2,7 +2,7 @@ import logging
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -41,6 +41,21 @@ class Settings(BaseSettings):
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
+
+    # Async worker / ingestion (Story 2.5)
+    # arq_redis_url: để rỗng thì tự lấy theo redis_url (xem validator bên dưới). Chỉ cần
+    # set ARQ_REDIS_URL khi muốn arq dùng Redis KHÁC với redis_url — tránh tình trạng chỉ
+    # cấu hình REDIS_URL (vd trong docker) nhưng worker lại trỏ về localhost mặc định.
+    arq_redis_url: str = Field(default="")
+    worker_concurrency: int = 2  # NFR4: concurrency_limit=2
+    ingestion_sse_ticket_ttl: int = 60  # TTL ticket SSE (giây)
+    ingestion_progress_ttl: int = 3600  # TTL key progress trong Redis (giây)
+
+    @model_validator(mode="after")
+    def _default_arq_redis_url(self) -> "Settings":
+        if not self.arq_redis_url:
+            self.arq_redis_url = self.redis_url
+        return self
 
     # Search
     broad_query_threshold: int = 50

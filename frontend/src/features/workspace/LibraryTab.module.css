@@ -219,3 +219,22 @@
   border-color: var(--accent-blue);
   color: var(--accent-blue);
 }
+
+.uploadButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: var(--border-hairline);
+  color: var(--ink-secondary);
+}
+
+.limitAlert {
+  background: var(--accent-red-light, #fee2e2);
+  border: 1px solid var(--state-danger, #ef4444);
+  color: var(--state-danger, #ef4444);
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 12px;
+  margin-top: 12px;
+}

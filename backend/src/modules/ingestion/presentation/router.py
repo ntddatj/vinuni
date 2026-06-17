@@ -1,24 +1,42 @@
-from pathlib import Path
+import json
+import uuid
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
+from sse_starlette.sse import EventSourceResponse
 
 from backend.src.modules.identity.domain.entities import User
 from backend.src.modules.identity.infrastructure.auth_dependencies import get_current_user
-from backend.src.modules.ingestion.application.use_cases import ConfirmMetadataUseCase, UploadDocumentUseCase
+from backend.src.modules.ingestion.application.use_cases import (
+    ConfirmMetadataUseCase,
+    IngestFromSearchUseCase,
+    UploadDocumentUseCase,
+)
 from backend.src.modules.ingestion.domain.exceptions import (
     FileStorageError,
     FileTooLargeError,
     IngestionFileNotFoundError,
     ProjectAccessDeniedError,
+    ProjectPaperLimitExceededError,
     UnsupportedFileTypeError,
 )
+from backend.src.modules.ingestion.infrastructure.postgres_repository import (
+    PostgresPaperRepository,
+    is_project_owned_by_user,
+)
+from backend.src.modules.ingestion.infrastructure.sse_stream import generate_sse
 from backend.src.modules.ingestion.presentation.schemas import (
+    AddFromSearchRequestSchema,
+    AddFromSearchResponseSchema,
     ConfirmRequestSchema,
     ConfirmResponseSchema,
+    PaperListItemSchema,
+    PaperListResponseSchema,
+    SSETicketResponseSchema,
     UploadResponseSchema,
 )
 from backend.src.shared.infra.database import get_db_session as get_db
+from backend.src.shared.infra.redis_client import get_redis
 from backend.src.shared.infra.settings import get_settings
 
 router = APIRouter(tags=["ingestion"])
@@ -87,8 +105,110 @@ async def confirm_metadata(
         )
     except IngestionFileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+    except ProjectPaperLimitExceededError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
 
     return ConfirmResponseSchema(
         document_id=result["document_id"],
         message=result["message"],
     )
+
+
+@router.post("/ingestion/from-search", response_model=AddFromSearchResponseSchema, status_code=201)
+async def add_from_search(
+    body: AddFromSearchRequestSchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AddFromSearchResponseSchema:
+    use_case = IngestFromSearchUseCase()
+    try:
+        result = await use_case.execute(
+            project_id=body.project_id,
+            user_id=str(current_user.id),
+            title=body.title,
+            authors=body.authors,
+            abstract=body.abstract,
+            year=body.year,
+            doi=body.doi,
+            arxiv_id=body.arxiv_id,
+            url=body.url,
+            pdf_url=body.pdf_url,
+            source=body.source,
+            db=db,
+        )
+    except ProjectAccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+    except ProjectPaperLimitExceededError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+
+    return AddFromSearchResponseSchema(
+        document_id=result["document_id"],
+        message=result["message"],
+    )
+
+
+@router.post("/ingestion/tasks/{document_id}/ticket", response_model=SSETicketResponseSchema)
+async def create_sse_ticket(
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SSETicketResponseSchema:
+    # Validate paper thuộc về user hiện tại (chống IDOR). Trả 404 nếu không thấy/không sở hữu.
+    paper_repo = PostgresPaperRepository(db)
+    paper = await paper_repo.find_owned_by_user(document_id, str(current_user.id))
+    if paper is None:
+        raise HTTPException(status_code=404, detail="Tài liệu không tồn tại")
+
+    settings = get_settings()
+    ticket = str(uuid.uuid4())
+    redis = await get_redis()
+    await redis.set(
+        f"ticket:{ticket}",
+        json.dumps({"document_id": document_id, "user_id": str(current_user.id)}),
+        ex=settings.ingestion_sse_ticket_ttl,
+    )
+    return SSETicketResponseSchema(ticket=ticket)
+
+
+@router.get("/ingestion/sse/stream")
+async def sse_stream(ticket: str = Query(...)) -> EventSourceResponse:
+    # Validate ticket từ Redis (one-time use: GET + DELETE).
+    # EventSource không gửi được Authorization header nên dùng ticket ngắn hạn.
+    redis = await get_redis()
+    ticket_key = f"ticket:{ticket}"
+    raw = await redis.get(ticket_key)
+    if not raw:
+        raise HTTPException(status_code=401, detail="Ticket SSE không hợp lệ hoặc đã hết hạn")
+    # KHÔNG xóa ticket ngay: EventSource của browser tự reconnect khi rớt mạng tạm thời và sẽ
+    # gọi lại cùng URL ?ticket=. Cho phép dùng lại trong thời gian TTL (ngắn) để reconnect
+    # hoạt động; ticket tự hết hạn theo TTL nên vẫn an toàn (capability ngắn hạn).
+
+    ticket_data = json.loads(raw)
+    document_id = ticket_data["document_id"]
+    return EventSourceResponse(generate_sse(redis, document_id))
+
+
+@router.get("/projects/{project_id}/papers", response_model=PaperListResponseSchema)
+async def list_project_papers(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PaperListResponseSchema:
+    if not await is_project_owned_by_user(db, project_id, str(current_user.id)):
+        raise HTTPException(status_code=403, detail="Không có quyền truy cập dự án này")
+
+    paper_repo = PostgresPaperRepository(db)
+    papers = await paper_repo.list_by_project(project_id, str(current_user.id))
+    items = [
+        PaperListItemSchema(
+            id=str(p.id),
+            title=p.title,
+            authors=list(p.authors or []),
+            year=p.year,
+            source=p.source,
+            status=p.status,
+            created_at=p.created_at,
+        )
+        for p in papers
+    ]
+    return PaperListResponseSchema(items)

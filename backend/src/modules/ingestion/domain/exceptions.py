@@ -28,3 +28,10 @@ class FileStorageError(Exception):
     def __init__(self, detail: str) -> None:
         super().__init__(f"Không thể lưu file lên server: {detail}")
         self.detail = detail
+
+
+class ProjectPaperLimitExceededError(Exception):
+    def __init__(self, project_id: str, limit: int) -> None:
+        super().__init__("Dự án đã đạt giới hạn tài liệu")
+        self.project_id = project_id
+        self.limit = limit

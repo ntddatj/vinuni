@@ -1,10 +1,15 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { getPublicSettings } from '@/api/admin';
 import { getErrorMessage } from '@/api/errors';
+import { addPaperFromSearch } from '@/api/ingestion';
 import { searchPapers } from '@/api/search';
 import type { TranslationKey } from '@/i18n/translations';
 import { useTranslation } from '@/i18n/useTranslation';
+import type { ProjectPaper } from '@/types/document';
 import type { PaperResult, SearchResponse } from '@/types/search';
+import { DocumentList } from './DocumentList';
+import { IngestionProgress } from './IngestionProgress';
 import styles from './LibraryTab.module.css';
 import { UploadModal } from './UploadModal';
 
@@ -18,7 +23,92 @@ export function LibraryTab({ projectId }: LibraryTabProps) {
   const [isSearching, setIsSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<SearchResponse | null>(null);
   const [showUpload, setShowUpload] = useState(false);
+  // Theo dõi NHIỀU tài liệu đang ingest song song (upload + add-from-search liên tiếp),
+  // tránh việc tài liệu thêm sau ghi đè mất theo dõi tài liệu trước.
+  const [processingDocumentIds, setProcessingDocumentIds] = useState<string[]>([]);
+  const [docRefreshTrigger, setDocRefreshTrigger] = useState(0);
+  const [addingPapers, setAddingPapers] = useState<Set<string>>(new Set());
+  const [papers, setPapers] = useState<ProjectPaper[]>([]);
+  const [maxPapers, setMaxPapers] = useState(15);
   const searchIdRef = useRef(0);
+
+  useEffect(() => {
+    getPublicSettings()
+      .then((s) => setMaxPapers(s.maxPapersPerProject))
+      .catch(() => {
+        // Giữ mặc định 15 nếu không lấy được cấu hình
+      });
+  }, []);
+
+  const isAtLimit = papers.length >= maxPapers;
+
+  const startProcessing = useCallback((documentId: string) => {
+    setProcessingDocumentIds((prev) => (prev.includes(documentId) ? prev : [...prev, documentId]));
+  }, []);
+
+  const stopProcessing = useCallback((documentId: string) => {
+    setProcessingDocumentIds((prev) => prev.filter((d) => d !== documentId));
+  }, []);
+
+  const handleIngestionComplete = useCallback(
+    (documentId: string) => {
+      toast.success(t('ingestion.done'));
+      stopProcessing(documentId);
+      setDocRefreshTrigger((n) => n + 1); // DocumentList refetch → onPapersLoad update isAtLimit
+    },
+    [t, stopProcessing],
+  );
+
+  const handleIngestionError = useCallback(
+    (documentId: string) => {
+      toast.error(t('ingestion.failed'));
+      stopProcessing(documentId);
+    },
+    [t, stopProcessing],
+  );
+
+  const handleIngestionTimeout = useCallback(
+    (documentId: string) => {
+      toast.warning(t('ingestion.timeout'));
+      stopProcessing(documentId);
+      setDocRefreshTrigger((n) => n + 1);
+    },
+    [t, stopProcessing],
+  );
+
+  async function handleAddFromSearch(paper: PaperResult) {
+    if (!projectId) return;
+    const key = paper.doi ?? paper.arxivId ?? paper.title;
+    setAddingPapers((prev) => new Set(prev).add(key));
+    try {
+      const res = await addPaperFromSearch({
+        projectId,
+        title: paper.title,
+        authors: paper.authors,
+        abstract: paper.abstract,
+        year: paper.year,
+        doi: paper.doi,
+        arxivId: paper.arxivId,
+        url: paper.url,
+        pdfUrl: paper.pdfUrl,
+        source: paper.source,
+      });
+      startProcessing(res.documentId);
+      setDocRefreshTrigger((n) => n + 1);
+      toast.success(t('search.addSuccess'));
+    } catch (err: unknown) {
+      // Hiển thị đúng message từ server cho 403 (giới hạn tài liệu), không dùng fallback generic
+      const axiosErr = err as { response?: { data?: { detail?: string } } };
+      const serverDetail = axiosErr?.response?.data?.detail;
+      toast.error(serverDetail ?? getErrorMessage(err, t('search.addError')));
+    } finally {
+      setAddingPapers((prev) => {
+        const s = new Set(prev);
+        s.delete(key);
+        return s;
+      });
+    }
+  }
 
   async function handleSearch() {
     const trimmed = query.trim();
@@ -104,21 +194,40 @@ export function LibraryTab({ projectId }: LibraryTabProps) {
             type="button"
             className={styles.uploadButton}
             onClick={() => setShowUpload(true)}
+            disabled={isAtLimit}
+            title={isAtLimit ? t('library.uploadDisabledLimit') : undefined}
           >
             {t('upload.button')}
           </button>
         )}
       </div>
 
+      {isAtLimit && projectId && (
+        <div className={styles.limitAlert}>
+          {t('library.limitReached').replace('{limit}', String(maxPapers))}
+        </div>
+      )}
+
       {showUpload && projectId && (
         <UploadModal
           projectId={projectId}
           onClose={() => setShowUpload(false)}
-          onSuccess={(_documentId) => {
+          onSuccess={(documentId) => {
             setShowUpload(false);
+            startProcessing(documentId);
           }}
         />
       )}
+
+      {processingDocumentIds.map((id) => (
+        <IngestionProgress
+          key={id}
+          documentId={id}
+          onComplete={() => handleIngestionComplete(id)}
+          onError={() => handleIngestionError(id)}
+          onTimeout={() => handleIngestionTimeout(id)}
+        />
+      ))}
 
       {searchResult?.isBroadQuery && searchResult.suggestions.length > 0 && (
         <BroadQuerySuggestions
@@ -128,9 +237,7 @@ export function LibraryTab({ projectId }: LibraryTabProps) {
         />
       )}
 
-      {isSearching && (
-        <div className={styles.loading}>{t('search.loading')}</div>
-      )}
+      {isSearching && <div className={styles.loading}>{t('search.loading')}</div>}
 
       {searchResult && !isSearching && (
         <>
@@ -138,12 +245,30 @@ export function LibraryTab({ projectId }: LibraryTabProps) {
             <div className={styles.empty}>{t('search.noResults')}</div>
           ) : (
             <div className={styles.resultList}>
-              {searchResult.results.map((paper, index) => (
-                <PaperCard key={paper.doi ?? paper.arxivId ?? index} paper={paper} t={t} />
-              ))}
+              {searchResult.results.map((paper, index) => {
+                const key = paper.doi ?? paper.arxivId ?? paper.title;
+                return (
+                  <PaperCard
+                    key={paper.doi ?? paper.arxivId ?? index}
+                    paper={paper}
+                    t={t}
+                    canAdd={projectId !== null && !isAtLimit}
+                    isAdding={addingPapers.has(key)}
+                    onAddToProject={handleAddFromSearch}
+                  />
+                );
+              })}
             </div>
           )}
         </>
+      )}
+
+      {projectId && (
+        <DocumentList
+          projectId={projectId}
+          refreshTrigger={docRefreshTrigger}
+          onPapersLoad={setPapers}
+        />
       )}
     </div>
   );
@@ -158,14 +283,13 @@ interface BroadQuerySuggestionsProps {
 function BroadQuerySuggestions({ suggestions, onSelect, t }: BroadQuerySuggestionsProps) {
   if (suggestions.length === 0) return null;
   return (
-    <div className={styles.suggestionsBar} role="group" aria-label={t('search.suggestionAriaLabel')}>
+    <div
+      className={styles.suggestionsBar}
+      role="group"
+      aria-label={t('search.suggestionAriaLabel')}
+    >
       {suggestions.map((s) => (
-        <button
-          key={s}
-          type="button"
-          className={styles.suggestionChip}
-          onClick={() => onSelect(s)}
-        >
+        <button key={s} type="button" className={styles.suggestionChip} onClick={() => onSelect(s)}>
           {s}
         </button>
       ))}
@@ -176,9 +300,12 @@ function BroadQuerySuggestions({ suggestions, onSelect, t }: BroadQuerySuggestio
 interface PaperCardProps {
   paper: PaperResult;
   t: (key: TranslationKey) => string;
+  canAdd: boolean;
+  isAdding: boolean;
+  onAddToProject: (paper: PaperResult) => void;
 }
 
-function PaperCard({ paper, t }: PaperCardProps) {
+function PaperCard({ paper, t, canAdd, isAdding, onAddToProject }: PaperCardProps) {
   const authorStr =
     paper.authors.slice(0, 3).join(', ') + (paper.authors.length > 3 ? ' et al.' : '');
   const abstractSnippet =
@@ -187,12 +314,7 @@ function PaperCard({ paper, t }: PaperCardProps) {
   return (
     <div className={styles.card}>
       <div className={styles.cardHeader}>
-        <a
-          href={paper.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={styles.paperTitle}
-        >
+        <a href={paper.url} target="_blank" rel="noopener noreferrer" className={styles.paperTitle}>
           {paper.title}
         </a>
         <div className={styles.badges}>
@@ -220,11 +342,11 @@ function PaperCard({ paper, t }: PaperCardProps) {
       <div className={styles.cardActions}>
         <button
           className={styles.addButton}
-          disabled
-          title={t('search.addComingSoon')}
+          disabled={!canAdd || isAdding}
+          onClick={() => onAddToProject(paper)}
           type="button"
         >
-          {t('search.addToProject')}
+          {isAdding ? t('search.addingToProject') : t('search.addToProject')}
         </button>
       </div>
     </div>

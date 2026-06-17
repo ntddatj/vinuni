@@ -4,8 +4,10 @@ import { MemoryRouter } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { LibraryTab } from '../LibraryTab';
 import * as searchApi from '@/api/search';
+import * as ingestionApi from '@/api/ingestion';
 
 vi.mock('@/api/search');
+vi.mock('@/api/ingestion');
 
 const MOCK_RESULT = {
   results: [
@@ -31,13 +33,14 @@ function renderTab(projectId: string | null = null) {
     <MemoryRouter>
       <Toaster />
       <LibraryTab projectId={projectId} />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 }
 
 describe('LibraryTab', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(ingestionApi.getPapersByProject).mockResolvedValue([]);
   });
 
   it('hiển thị ô tìm kiếm và nút Tìm kiếm', () => {
@@ -60,9 +63,7 @@ describe('LibraryTab', () => {
     fireEvent.change(input, { target: { value: 'transformer' } });
     fireEvent.click(screen.getByRole('button', { name: /tìm kiếm/i }));
 
-    await waitFor(() =>
-      expect(screen.getByText('Attention Is All You Need')).toBeInTheDocument()
-    );
+    await waitFor(() => expect(screen.getByText('Attention Is All You Need')).toBeInTheDocument());
     expect(screen.getByText(/Vaswani/)).toBeInTheDocument();
     expect(screen.getByText('2017')).toBeInTheDocument();
   });
@@ -76,7 +77,7 @@ describe('LibraryTab', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
 
     await waitFor(() =>
-      expect(vi.mocked(searchApi.searchPapers)).toHaveBeenCalledWith('transformer', 10)
+      expect(vi.mocked(searchApi.searchPapers)).toHaveBeenCalledWith('transformer', 10),
     );
   });
 
@@ -93,9 +94,7 @@ describe('LibraryTab', () => {
     fireEvent.change(input, { target: { value: 'xyznotfound' } });
     fireEvent.click(screen.getByRole('button', { name: /tìm kiếm/i }));
 
-    await waitFor(() =>
-      expect(screen.getByText(/không tìm thấy bài báo/i)).toBeInTheDocument()
-    );
+    await waitFor(() => expect(screen.getByText(/không tìm thấy bài báo/i)).toBeInTheDocument());
   });
 
   it('nút "Thêm vào dự án" disabled trên mỗi card', async () => {
@@ -136,7 +135,7 @@ describe('LibraryTab', () => {
     fireEvent.click(screen.getByRole('button', { name: /tìm kiếm/i }));
 
     await waitFor(() =>
-      expect(screen.getByText('Natural Language Processing')).toBeInTheDocument()
+      expect(screen.getByText('Natural Language Processing')).toBeInTheDocument(),
     );
     expect(screen.getByText('Computer Vision')).toBeInTheDocument();
     expect(screen.getByText('Reinforcement Learning')).toBeInTheDocument();
@@ -163,11 +162,9 @@ describe('LibraryTab', () => {
     fireEvent.click(screen.getByText('Computer Vision'));
 
     await waitFor(() =>
-      expect(vi.mocked(searchApi.searchPapers)).toHaveBeenCalledWith('Computer Vision', 10)
+      expect(vi.mocked(searchApi.searchPapers)).toHaveBeenCalledWith('Computer Vision', 10),
     );
-    await waitFor(() =>
-      expect(screen.getByText('Attention Is All You Need')).toBeInTheDocument()
-    );
+    await waitFor(() => expect(screen.getByText('Attention Is All You Need')).toBeInTheDocument());
   });
 
   it('không hiển thị chip khi suggestions rỗng dù isBroadQuery = true', async () => {
@@ -183,9 +180,34 @@ describe('LibraryTab', () => {
     fireEvent.change(input, { target: { value: 'AI' } });
     fireEvent.click(screen.getByRole('button', { name: /tìm kiếm/i }));
 
-    await waitFor(() =>
-      expect(screen.getByText(/không tìm thấy bài báo/i)).toBeInTheDocument()
-    );
+    await waitFor(() => expect(screen.getByText(/không tìm thấy bài báo/i)).toBeInTheDocument());
     expect(screen.queryByRole('group', { name: /gợi ý phân ngành/i })).not.toBeInTheDocument();
+  });
+
+  it('hiển thị DocumentList khi projectId không null', async () => {
+    renderTab('proj-1');
+    await waitFor(() =>
+      expect(vi.mocked(ingestionApi.getPapersByProject)).toHaveBeenCalledWith('proj-1'),
+    );
+    expect(screen.getByText(/tài liệu trong dự án/i)).toBeInTheDocument();
+  });
+
+  it('không hiển thị DocumentList khi projectId null', () => {
+    renderTab(null);
+    expect(screen.queryByText(/tài liệu trong dự án/i)).not.toBeInTheDocument();
+    expect(vi.mocked(ingestionApi.getPapersByProject)).not.toHaveBeenCalled();
+  });
+
+  it('nút "Thêm vào dự án" được enable khi có projectId', async () => {
+    vi.mocked(searchApi.searchPapers).mockResolvedValue(MOCK_RESULT);
+    renderTab('proj-1');
+
+    const input = screen.getByPlaceholderText(/tìm kiếm bài báo/i);
+    fireEvent.change(input, { target: { value: 'transformer' } });
+    fireEvent.click(screen.getByRole('button', { name: /tìm kiếm/i }));
+
+    await waitFor(() => screen.getByText('Attention Is All You Need'));
+    const addBtn = screen.getByRole('button', { name: /thêm vào dự án/i });
+    expect(addBtn).not.toBeDisabled();
   });
 });

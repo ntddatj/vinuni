@@ -1,5 +1,13 @@
 import apiClient from '@/api/client';
-import type { ConfirmRequest, ConfirmResponse, UploadResponse } from '@/types/document';
+import type {
+  AddFromSearchRequest,
+  AddFromSearchResponse,
+  ConfirmRequest,
+  ConfirmResponse,
+  ProjectPaper,
+  SSETicketResponse,
+  UploadResponse,
+} from '@/types/document';
 
 export async function uploadDocument(file: File, projectId: string): Promise<UploadResponse> {
   const formData = new FormData();
@@ -13,5 +21,22 @@ export async function uploadDocument(file: File, projectId: string): Promise<Upl
 
 export async function confirmMetadata(data: ConfirmRequest): Promise<ConfirmResponse> {
   const res = await apiClient.post<ConfirmResponse>('/api/ingestion/confirm', data);
+  return res.data;
+}
+
+export async function getSSETicket(documentId: string): Promise<SSETicketResponse> {
+  const res = await apiClient.post<SSETicketResponse>(`/api/ingestion/tasks/${documentId}/ticket`);
+  return res.data;
+}
+
+export async function getPapersByProject(projectId: string): Promise<ProjectPaper[]> {
+  const res = await apiClient.get<ProjectPaper[]>(`/api/projects/${projectId}/papers`);
+  return res.data;
+}
+
+export async function addPaperFromSearch(
+  data: AddFromSearchRequest,
+): Promise<AddFromSearchResponse> {
+  const res = await apiClient.post<AddFromSearchResponse>('/api/ingestion/from-search', data);
   return res.data;
 }

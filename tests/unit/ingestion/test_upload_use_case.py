@@ -110,7 +110,16 @@ async def test_confirm_saves_paper_with_pending_status(confirm_use_case, db):
     with (
         patch("backend.src.modules.ingestion.application.use_cases.PostgresUploadedFileRepository") as MockFileRepo,
         patch("backend.src.modules.ingestion.application.use_cases.PostgresPaperRepository") as MockPaperRepo,
+        patch("backend.src.modules.ingestion.application.use_cases.get_max_papers_limit", new_callable=AsyncMock, return_value=15),
+        patch("backend.src.modules.ingestion.application.use_cases.count_papers_by_project", new_callable=AsyncMock, return_value=0),
+        patch("backend.src.modules.ingestion.application.use_cases.get_redis", new_callable=AsyncMock) as mock_get_redis,
+        patch("backend.src.modules.ingestion.application.use_cases.enqueue_ingestion_task", new_callable=AsyncMock),
     ):
+        mock_redis = AsyncMock()
+        mock_redis.set = AsyncMock(return_value=True)
+        mock_redis.delete = AsyncMock()
+        mock_get_redis.return_value = mock_redis
+
         mock_file_repo = MockFileRepo.return_value
         mock_file_repo.find_by_id = AsyncMock(return_value=mock_uploaded_file)
 

@@ -1,5 +1,18 @@
 # Deferred Work
 
+## Deferred from: code review of story 2-6-kiem-soat-gioi-han-so-luong-tai-lieu-admin-dat-ra (2026-06-17)
+
+- **`create_all` (dev path) không seed `system_settings`** — chỉ migration 007 seed (MAX_PAPERS_PER_PROJECT=15, BROAD_QUERY_THRESHOLD=50); đường `Base.metadata.create_all` của lifespan tạo bảng rỗng. Trên DB dev mới, `GET /admin/settings` trả list rỗng → trang Admin hiển thị mặc định 15/50 và chỉ tạo row sau lần Save đầu. Giá trị vẫn áp dụng đúng nhờ fallback trong `get_setting/get_max_papers_limit`; tác động thấp. [backend/main.py:35]
+- **Loser của race có thể nhận 503 thay vì 403 (AC#2)** — Redis lock chỉ retry 2 lần với 1 nhịp sleep 0.2s; nếu winner giữ lock >0.2s, loser nhận 503 "Hệ thống đang bận" thay vì 403. ĐÃ QUYẾT ĐỊNH chấp nhận: bảo đảm cốt lõi *không nhân đôi tài liệu* vẫn đúng, 503 là tín hiệu contention retriable; đổi sang blocking-wait để ép 403 thêm độ trễ/nguy cơ thundering-herd không đáng. [backend/src/modules/ingestion/application/use_cases.py:_paper_limit_lock]
+
+## Deferred from: code review of story 2-5-ingestion-bat-dong-bo-qua-worker-arq-stream-tien-trinh-sse (2026-06-17)
+
+- **enqueue sau `db.commit()` không bù trừ khi Redis down** — paper đã commit `pending` nhưng job không được đẩy, exception trả 500; paper kẹt `pending` mãi, frontend không mở SSE. MVP đã tự ghi nhận trong docstring. [backend/src/modules/ingestion/application/use_cases.py:41-45]
+- **Paper không có text bị đánh dấu `indexed` im lặng** — download fail + không có abstract → text rỗng → worker set `indexed` + `publish_completed`; UI báo thành công dù không có nội dung tìm kiếm được. Thiếu trạng thái "indexed nhưng rỗng". [backend/worker.py:120-125]
+- **`from-search` không giới hạn độ dài input** — title/abstract/authors không bound; abstract là fallback text cho ingestion → client (project owner) có thể post abstract nhiều MB nuôi pipeline embedding (DoS/chi phí). [backend/src/modules/ingestion/presentation/schemas.py AddFromSearchRequestSchema]
+- **`get_redis()` singleton race + không dispose** — check-then-set không khóa, hai request cold-start có thể tạo 2 client (rò rỉ client đầu); không có cleanup lúc shutdown. `from_url` lazy nên impact thấp. [backend/src/shared/infra/redis_client.py]
+- **`DocumentList` không auto-poll** — hàng `pending`/`processing` chỉ cập nhật khi `refreshTrigger` bị bump bởi SSE completion; tài liệu thêm ở tab/phiên khác hoặc bị onerror sai sẽ kẹt badge `processing` (animation quay mãi). [frontend/src/features/workspace/DocumentList.tsx]
+
 ## Deferred from: code review of story 2-2-tim-kiem-bai-bao-hoc-thuat-song-song-voi-xu-ly-loi-degraded-union (2026-06-17)
 
 - **Dedup không bắt trùng chéo nguồn khi định danh rời rạc** — cùng một bài: arXiv chỉ trả `arxiv_id`, Semantic Scholar chỉ trả `DOI` (không có ArXiv externalId) → không có khóa chung nên cả hai lọt qua `_deduplicate`, bài xuất hiện 2 lần. Cần fuzzy/title matching, là tính năng lớn hơn AC #2. [backend/src/modules/search/application/use_cases.py:56-76]

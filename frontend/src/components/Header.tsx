@@ -27,7 +27,11 @@ export function Header() {
       <span className={styles.logo}>C2 Research</span>
       <div className={styles.actions}>
         {user?.role === 'admin' && (
-          <button className={`${styles.iconButton} ${styles.adminButton}`} type="button">
+          <button
+            className={`${styles.iconButton} ${styles.adminButton}`}
+            type="button"
+            onClick={() => navigate('/admin/settings')}
+          >
             ⚙️ {t('header.settings')}
           </button>
         )}

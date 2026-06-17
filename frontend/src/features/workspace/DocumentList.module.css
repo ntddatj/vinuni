@@ -1,0 +1,116 @@
+.container {
+  margin-top: 16px;
+}
+
+.heading {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-primary);
+  margin: 0 0 10px;
+}
+
+.message {
+  font-size: 13px;
+  color: var(--ink-secondary);
+  padding: 12px 0;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+}
+
+.main {
+  min-width: 0;
+  flex: 1;
+}
+
+.title {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ink-secondary);
+}
+
+.authors {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+
+.sourceBadge {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface-hover);
+  color: var(--ink-secondary);
+  white-space: nowrap;
+}
+
+.statusBadge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.statusBadge[data-status='pending'] {
+  background: color-mix(in srgb, var(--state-warning) 18%, transparent);
+  color: var(--state-warning);
+}
+
+.statusBadge[data-status='processing'] {
+  background: color-mix(in srgb, var(--accent-blue) 18%, transparent);
+  color: var(--accent-blue);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.statusBadge[data-status='indexed'] {
+  background: color-mix(in srgb, var(--state-success) 18%, transparent);
+  color: var(--state-success);
+}
+
+.statusBadge[data-status='failed'] {
+  background: color-mix(in srgb, var(--state-danger) 18%, transparent);
+  color: var(--state-danger);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
