@@ -34,6 +34,7 @@ from backend.src.modules.ingestion.infrastructure.task_progress import (
     publish_error,
     publish_progress,
 )
+from backend.src.modules.ingestion.infrastructure.graph_extractor import GraphExtractor
 from backend.src.modules.ingestion.infrastructure.text_chunker import chunk_text
 from backend.src.modules.graph_rag.infrastructure.garbage_collection import garbage_collection_task  # noqa: F401
 from backend.src.modules.graph_rag.infrastructure.outbox_worker import sync_outbox_task  # noqa: F401
@@ -44,6 +45,7 @@ from backend.src.modules.workspace.infrastructure.orm_models import (  # noqa: F
 from backend.src.shared.infra.neo4j_client import (
     close_neo4j_driver,
     create_base_constraints,
+    create_ontology_constraints,
     get_neo4j_driver,
 )
 from backend.src.shared.infra.settings import get_settings
@@ -151,6 +153,7 @@ async def startup(ctx) -> None:
     neo4j_driver = await get_neo4j_driver()
     ctx["neo4j_driver"] = neo4j_driver
     await create_base_constraints(neo4j_driver)
+    await create_ontology_constraints(neo4j_driver)
 
 
 async def shutdown(ctx) -> None:
@@ -313,6 +316,7 @@ async def ingest_paper_task(ctx, paper_id: str) -> None:
                 db.add(_build_paper_upserted_event(paper))
                 await db.commit()
                 await publish_completed(redis, paper_id)
+                await _enqueue_graph_extract(redis, paper_id)
                 return
 
             # Bước 3: chunk
@@ -387,6 +391,7 @@ async def ingest_paper_task(ctx, paper_id: str) -> None:
             await db.commit()
 
             await publish_completed(redis, paper_id)
+            await _enqueue_graph_extract(redis, paper_id)
             logger.info("Ingested paper %s successfully", paper_id)
 
         except Exception as e:
@@ -407,8 +412,133 @@ async def ingest_paper_task(ctx, paper_id: str) -> None:
             await publish_error(redis, paper_id, str(e))
 
 
+async def _enqueue_graph_extract(redis, paper_id: str) -> None:
+    """Enqueue Stage-2 graph extraction. Best-effort: lỗi enqueue KHÔNG được làm fail paper
+    đã ingest thành công (đã commit indexed + chunks). Admin có thể backfill lại sau."""
+    try:
+        await redis.enqueue_job(
+            "graph_extract_task", paper_id, _job_id=f"graph_extract:{paper_id}"
+        )
+    except Exception as e:
+        logger.warning(
+            "Không thể enqueue graph_extract_task cho paper %s (ingest vẫn thành công): %s",
+            paper_id,
+            e,
+        )
+
+
+def _clamp_score(value: object) -> float:
+    """Ép confidence_score về float trong [0.0, 1.0]; trả 0.0 nếu LLM trả kiểu không hợp lệ."""
+    try:
+        score = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0.0
+    return max(0.0, min(1.0, score))
+
+
+async def graph_extract_task(ctx, paper_id: str) -> None:
+    """Stage-2: trích xuất ontology học thuật từ paper đã indexed, ghi ONTOLOGY_EXTRACTED event."""
+    session_factory: async_sessionmaker = ctx["session_factory"]
+
+    async with session_factory() as db:
+        result = await db.execute(select(PaperORM).where(PaperORM.id == paper_id))
+        paper: PaperORM | None = result.scalar_one_or_none()
+        if paper is None or paper.is_deleted or paper.status != "indexed":
+            logger.info(
+                "graph_extract_task: bỏ qua paper %s (None=%s, deleted=%s, status=%s)",
+                paper_id,
+                paper is None,
+                getattr(paper, "is_deleted", None),
+                getattr(paper, "status", None),
+            )
+            return
+
+        # Lấy text từ ParentChunkORM; fallback về abstract
+        chunk_result = await db.execute(
+            select(ParentChunkORM)
+            .where(ParentChunkORM.paper_id == paper_id)
+            .order_by(ParentChunkORM.chunk_index)
+        )
+        chunks = chunk_result.scalars().all()
+        if chunks:
+            full_text = "\n\n".join(c.content for c in chunks)
+        else:
+            full_text = paper.abstract or ""
+
+        # Không có nội dung lẫn abstract → không thể trích xuất gì; tránh gọi LLM tốn phí.
+        if not full_text.strip() and not (paper.abstract or "").strip():
+            logger.info(
+                "graph_extract_task: paper %s không có nội dung/abstract — bỏ qua", paper_id
+            )
+            return
+
+        extractor = GraphExtractor(user_id=paper.user_id, db=db)
+        data = await extractor.extract(
+            paper_id=paper_id,
+            project_id=paper.project_id,
+            title=paper.title or "",
+            abstract=paper.abstract or "",
+            text=full_text,
+        )
+        if data is None:
+            logger.warning("graph_extract_task: không trích xuất được ontology cho paper %s", paper_id)
+            return
+
+        # Chuẩn hóa IDs: thay id LLM trả (f1, l1,...) thành "{paper_id}:f:{n}" v.v.
+        def _remap(items: list, prefix: str) -> tuple[list, dict]:
+            id_map: dict[str, str] = {}
+            remapped = []
+            for n, item in enumerate(items):
+                old_id = item.get("id", f"{prefix}{n}")
+                new_id = f"{paper_id}:{prefix}:{n}"
+                id_map[old_id] = new_id
+                remapped.append({**item, "id": new_id})
+            return remapped, id_map
+
+        findings, f_map = _remap(data.get("findings") or [], "f")
+        for f in findings:
+            f["confidence_score"] = _clamp_score(f.get("confidence_score"))
+        limitations, _ = _remap(data.get("limitations") or [], "l")
+        methods, _ = _remap(data.get("methods") or [], "m")
+        datasets, _ = _remap(data.get("datasets") or [], "d")
+        topics, _ = _remap(data.get("topics") or [], "t")
+        problems, _ = _remap(data.get("problems") or [], "pr")
+
+        def _remap_edge(edge: dict) -> dict | None:
+            new_from = f_map.get(edge.get("from_id", ""))
+            new_to = f_map.get(edge.get("to_id", ""))
+            if not new_from or not new_to or new_from == new_to:
+                return None
+            return {"from_id": new_from, "to_id": new_to}
+
+        contradicts = [e for e in (_remap_edge(e) for e in (data.get("contradicts") or [])) if e]
+        supports = [e for e in (_remap_edge(e) for e in (data.get("supports") or [])) if e]
+
+        outbox_event = SyncOutboxORM(
+            event_type="ONTOLOGY_EXTRACTED",
+            project_id=paper.project_id,
+            payload={
+                "paper_id": paper_id,
+                "project_id": paper.project_id,
+                "abstract": paper.abstract or "",
+                "authors": paper.authors or [],
+                "findings": findings,
+                "limitations": limitations,
+                "methods": methods,
+                "datasets": datasets,
+                "topics": topics,
+                "problems": problems,
+                "contradicts": contradicts,
+                "supports": supports,
+            },
+        )
+        db.add(outbox_event)
+        await db.commit()
+        logger.info("graph_extract_task: đã ghi ONTOLOGY_EXTRACTED cho paper %s", paper_id)
+
+
 class WorkerSettings:
-    functions = [ingest_paper_task]
+    functions = [ingest_paper_task, graph_extract_task]
     on_startup = startup
     on_shutdown = shutdown
     max_jobs = 2  # NFR4: concurrency_limit=2

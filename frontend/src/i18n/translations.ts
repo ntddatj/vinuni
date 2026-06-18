@@ -133,6 +133,23 @@ export const translations = {
   'library.authorsField': { vi: 'Tác giả (cách nhau bởi dấu phẩy)', en: 'Authors (comma separated)' },
   'library.abstractField': { vi: 'Tóm tắt', en: 'Abstract' },
   'library.yearField': { vi: 'Năm xuất bản', en: 'Publication Year' },
+  'graph.selectProject': { vi: 'Chọn một dự án để xem bản đồ tri thức', en: 'Select a project to view the knowledge map' },
+  'graph.loading': { vi: 'Đang tải đồ thị...', en: 'Loading graph...' },
+  'graph.error': { vi: 'Không thể tải đồ thị', en: 'Failed to load graph' },
+  'graph.hasMore': { vi: 'Đồ thị lớn — click node để mở rộng', en: 'Large graph — click node to expand' },
+  'graph.resetView': { vi: 'Khôi phục góc nhìn', en: 'Reset view' },
+  'graph.showAuthors': { vi: 'Hiện tác giả', en: 'Show authors' },
+  'graph.syncing': { vi: '⟳ Đồ thị đang cập nhật…', en: '⟳ Graph updating…' },
+  'graph.askAI': { vi: 'Hỏi AI về bài này', en: 'Ask AI about this paper' },
+  'graph.expand': { vi: 'Mở rộng', en: 'Expand' },
+  'graph.emptyGraph': { vi: 'Chưa có dữ liệu đồ thị. Thêm tài liệu vào dự án để bắt đầu.', en: 'No graph data yet. Add documents to start.' },
+  'graph.legendTitle': { vi: 'Chú giải', en: 'Legend' },
+  'graph.legendFullText': { vi: 'Bài báo (full text)', en: 'Paper (full text)' },
+  'graph.legendMetaOnly': { vi: 'Bài báo (metadata)', en: 'Paper (metadata only)' },
+  'graph.legendAuthor': { vi: 'Tác giả', en: 'Author' },
+  'graph.legendCites': { vi: 'Trích dẫn', en: 'Cites' },
+  'graph.legendAuthoredBy': { vi: 'Viết bởi', en: 'Authored by' },
+  'graph.authoredPapers': { vi: 'Bài báo trong dự án:', en: 'Papers in project:' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

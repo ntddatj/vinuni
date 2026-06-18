@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.src.modules.admin.infrastructure.settings_orm import (
@@ -14,6 +15,7 @@ from backend.src.modules.admin.presentation.schemas import (
 )
 from backend.src.modules.identity.domain.entities import User
 from backend.src.modules.identity.infrastructure.auth_dependencies import get_current_user
+from backend.src.modules.ingestion.infrastructure.orm_models import PaperORM
 from backend.src.shared.infra.database import get_db_session as get_db
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -91,3 +93,41 @@ async def update_setting(
     await db.commit()
     await db.refresh(row)
     return row
+
+
+@router.post("/backfill-graph-extraction")
+async def backfill_graph_extraction(
+    _: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Re-enqueue graph_extract_task cho mọi paper đã indexed (idempotent via _job_id)."""
+    from arq import create_pool
+    from arq.connections import RedisSettings
+
+    from backend.src.shared.infra.settings import get_settings as _get_settings
+
+    result = await db.execute(
+        select(PaperORM.id).where(
+            PaperORM.status == "indexed", PaperORM.is_deleted.is_(False)
+        )
+    )
+    paper_ids = result.scalars().all()
+
+    settings = _get_settings()
+    redis = await create_pool(RedisSettings.from_dsn(settings.arq_redis_url))
+    enqueued = 0
+    try:
+        for paper_id in paper_ids:
+            await redis.enqueue_job(
+                "graph_extract_task",
+                paper_id,
+                _job_id=f"graph_extract:{paper_id}",
+            )
+            enqueued += 1
+    finally:
+        await redis.aclose()
+
+    return {
+        "enqueued": enqueued,
+        "message": f"Đã đưa {enqueued} tài liệu vào hàng đợi trích xuất ontology",
+    }

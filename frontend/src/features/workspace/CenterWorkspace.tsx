@@ -2,6 +2,7 @@ import { useProjectStore } from '@/store/projectStore';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { useTranslation } from '@/i18n/useTranslation';
 import { LibraryTab } from './LibraryTab';
+import { KnowledgeMapTab } from './KnowledgeMapTab';
 import styles from './CenterWorkspace.module.css';
 
 export function CenterWorkspace() {
@@ -48,8 +49,8 @@ export function CenterWorkspace() {
         <div style={{ display: activeTab === 'library' ? 'block' : 'none' }}>
           <LibraryTab projectId={activeProjectId} />
         </div>
-        <div style={{ display: activeTab === 'graph' ? 'block' : 'none' }}>
-          <p className={styles.placeholder}>{t('tab.graph')}</p>
+        <div style={{ display: activeTab === 'graph' ? 'flex' : 'none', flex: 1, minHeight: 0, overflow: 'hidden', padding: 0, margin: '-24px' }}>
+          <KnowledgeMapTab projectId={activeProjectId} />
         </div>
         <div style={{ display: activeTab === 'writing' ? 'block' : 'none' }}>
           <p className={styles.placeholder}>{t('tab.writing')}</p>

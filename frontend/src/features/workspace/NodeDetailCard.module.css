@@ -1,0 +1,132 @@
+.card {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 280px;
+  background: var(--surface-raised, #ffffff);
+  border: 1px solid var(--border-hairline, #E5E2DC);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  z-index: 20;
+  padding: 14px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-primary, #1C1917);
+  margin: 0;
+  line-height: 1.35;
+  flex: 1;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.closeBtn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--ink-secondary, #78716C);
+  padding: 0 2px;
+  line-height: 1;
+  font-family: inherit;
+}
+
+.closeBtn:hover {
+  color: var(--ink-primary, #1C1917);
+}
+
+.meta {
+  font-size: 12px;
+  color: var(--ink-secondary, #78716C);
+  font-weight: 400;
+}
+
+.abstract {
+  font-size: 12px;
+  color: var(--ink-secondary, #78716C);
+  line-height: 1.5;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  margin: 2px 0;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.askAIBtn {
+  flex: 1;
+  padding: 6px 10px;
+  background: #2563EB;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.askAIBtn:hover {
+  background: #1D4ED8;
+}
+
+.expandBtn {
+  padding: 6px 10px;
+  background: var(--surface-base, #FAF9F6);
+  border: 1px solid var(--border-hairline, #E5E2DC);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--ink-secondary, #78716C);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.expandBtn:hover {
+  color: var(--ink-primary, #1C1917);
+}
+
+.paperList {
+  list-style: none;
+  padding: 0;
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--ink-primary, #1C1917);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.paperList li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sectionLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-secondary, #78716C);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 2px 0;
+}

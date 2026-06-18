@@ -145,6 +145,184 @@ async def handle_cites(session: AsyncSession, payload: dict) -> None:
     )
 
 
+async def handle_ontology_extracted(session: AsyncSession, payload: dict) -> None:
+    """MERGE ontology nodes + edges cho ONTOLOGY_EXTRACTED event (Story 4.3).
+
+    Bước 0: SET Paper.abstract + Paper.authors.
+    Bước 1-3: MERGE Finding/Limitation/Method/Dataset/Topic/Problem + edges tới Paper.
+    Bước 4: MERGE CONTRADICTS/SUPPORTS edges giữa Findings (scope project_id).
+    """
+    paper_id = payload.get("paper_id", "")
+    project_id = payload.get("project_id", "")
+    abstract = payload.get("abstract")
+    authors = payload.get("authors")
+
+    # Bước 0: Cập nhật Paper.abstract + Paper.authors
+    if abstract is not None or authors is not None:
+        await session.run(
+            """
+            MATCH (p:Paper {id: $paper_id})
+            SET p.abstract = $abstract, p.authors = $authors, p.updated_at = datetime()
+            """,
+            paper_id=paper_id,
+            abstract=abstract or "",
+            authors=authors or [],
+        )
+
+    # Bước 1: Finding nodes + HAS_FINDING edges
+    for finding in payload.get("findings") or []:
+        if not finding.get("id"):
+            continue
+        await session.run(
+            """
+            MERGE (f:Finding {id: $id})
+            ON CREATE SET f.description = $description, f.confidence_score = $score,
+                          f.project_id = $project_id, f.created_at = datetime()
+            ON MATCH SET f.description = $description, f.confidence_score = $score,
+                         f.updated_at = datetime()
+            WITH f
+            MATCH (p:Paper {id: $paper_id})
+            MERGE (p)-[:HAS_FINDING]->(f)
+            """,
+            id=finding["id"],
+            description=finding.get("description", ""),
+            score=finding.get("confidence_score", 0.0),
+            project_id=project_id,
+            paper_id=paper_id,
+        )
+
+    # Bước 2: Limitation nodes + HAS_LIMITATION edges
+    for limitation in payload.get("limitations") or []:
+        if not limitation.get("id"):
+            continue
+        await session.run(
+            """
+            MERGE (l:Limitation {id: $id})
+            ON CREATE SET l.description = $description, l.project_id = $project_id,
+                          l.created_at = datetime()
+            ON MATCH SET l.description = $description, l.updated_at = datetime()
+            WITH l
+            MATCH (p:Paper {id: $paper_id})
+            MERGE (p)-[:HAS_LIMITATION]->(l)
+            """,
+            id=limitation["id"],
+            description=limitation.get("description", ""),
+            project_id=project_id,
+            paper_id=paper_id,
+        )
+
+    # Bước 3a: Method nodes + HAS_METHOD edges
+    for method in payload.get("methods") or []:
+        if not method.get("id"):
+            continue
+        await session.run(
+            """
+            MERGE (m:Method {id: $id})
+            ON CREATE SET m.name = $name, m.description = $description,
+                          m.project_id = $project_id, m.created_at = datetime()
+            ON MATCH SET m.name = $name, m.description = $description, m.updated_at = datetime()
+            WITH m
+            MATCH (p:Paper {id: $paper_id})
+            MERGE (p)-[:HAS_METHOD]->(m)
+            """,
+            id=method["id"],
+            name=method.get("name", ""),
+            description=method.get("description", ""),
+            project_id=project_id,
+            paper_id=paper_id,
+        )
+
+    # Bước 3b: Dataset nodes + USES_DATASET edges
+    for dataset in payload.get("datasets") or []:
+        if not dataset.get("id"):
+            continue
+        await session.run(
+            """
+            MERGE (d:Dataset {id: $id})
+            ON CREATE SET d.name = $name, d.description = $description,
+                          d.project_id = $project_id, d.created_at = datetime()
+            ON MATCH SET d.name = $name, d.description = $description, d.updated_at = datetime()
+            WITH d
+            MATCH (p:Paper {id: $paper_id})
+            MERGE (p)-[:USES_DATASET]->(d)
+            """,
+            id=dataset["id"],
+            name=dataset.get("name", ""),
+            description=dataset.get("description", ""),
+            project_id=project_id,
+            paper_id=paper_id,
+        )
+
+    # Bước 3c: Topic nodes + HAS_TOPIC edges
+    for topic in payload.get("topics") or []:
+        if not topic.get("id"):
+            continue
+        await session.run(
+            """
+            MERGE (t:Topic {id: $id})
+            ON CREATE SET t.name = $name, t.project_id = $project_id, t.created_at = datetime()
+            ON MATCH SET t.name = $name, t.updated_at = datetime()
+            WITH t
+            MATCH (p:Paper {id: $paper_id})
+            MERGE (p)-[:HAS_TOPIC]->(t)
+            """,
+            id=topic["id"],
+            name=topic.get("name", ""),
+            project_id=project_id,
+            paper_id=paper_id,
+        )
+
+    # Bước 3d: Problem nodes + ADDRESSES edges
+    for problem in payload.get("problems") or []:
+        if not problem.get("id"):
+            continue
+        await session.run(
+            """
+            MERGE (pr:Problem {id: $id})
+            ON CREATE SET pr.description = $description, pr.project_id = $project_id,
+                          pr.created_at = datetime()
+            ON MATCH SET pr.description = $description, pr.updated_at = datetime()
+            WITH pr
+            MATCH (p:Paper {id: $paper_id})
+            MERGE (p)-[:ADDRESSES]->(pr)
+            """,
+            id=problem["id"],
+            description=problem.get("description", ""),
+            project_id=project_id,
+            paper_id=paper_id,
+        )
+
+    # Bước 4: CONTRADICTS edges giữa Findings (scope project_id)
+    for edge in payload.get("contradicts") or []:
+        if not edge.get("from_id") or not edge.get("to_id"):
+            continue
+        await session.run(
+            """
+            MATCH (f1:Finding {id: $from_id}), (f2:Finding {id: $to_id})
+            WHERE f1.project_id = $project_id AND f2.project_id = $project_id
+            MERGE (f1)-[:CONTRADICTS]->(f2)
+            """,
+            from_id=edge["from_id"],
+            to_id=edge["to_id"],
+            project_id=project_id,
+        )
+
+    # Bước 4b: SUPPORTS edges giữa Findings
+    for edge in payload.get("supports") or []:
+        if not edge.get("from_id") or not edge.get("to_id"):
+            continue
+        await session.run(
+            """
+            MATCH (f1:Finding {id: $from_id}), (f2:Finding {id: $to_id})
+            WHERE f1.project_id = $project_id AND f2.project_id = $project_id
+            MERGE (f1)-[:SUPPORTS]->(f2)
+            """,
+            from_id=edge["from_id"],
+            to_id=edge["to_id"],
+            project_id=project_id,
+        )
+
+
 # Dispatch map: event_type → handler. Mở rộng được: Story 4.3 chỉ cần thêm entry vào đây
 # (không sửa worker core). Key = event_type string, value = async callable(session, payload).
 HANDLER_MAP: dict = {
@@ -152,4 +330,5 @@ HANDLER_MAP: dict = {
     "PROJECT_DELETED": handle_project_deleted,
     "PAPER_DELETED": handle_paper_deleted,
     "CITES": handle_cites,
+    "ONTOLOGY_EXTRACTED": handle_ontology_extracted,
 }

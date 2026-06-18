@@ -50,3 +50,25 @@ async def create_base_constraints(driver: AsyncDriver) -> None:
             except Exception as e:
                 logger.warning("Không thể tạo Neo4j constraint: %s — %s", cql, e)
     logger.info("Neo4j base constraints đã được đảm bảo.")
+
+
+# Unique Constraints ontology (Story 4.3) — Finding/Limitation/Method/Dataset/Topic/Problem
+_ONTOLOGY_CONSTRAINTS_CQL = [
+    "CREATE CONSTRAINT finding_id_unique IF NOT EXISTS FOR (n:Finding) REQUIRE n.id IS UNIQUE",
+    "CREATE CONSTRAINT limitation_id_unique IF NOT EXISTS FOR (n:Limitation) REQUIRE n.id IS UNIQUE",
+    "CREATE CONSTRAINT method_id_unique IF NOT EXISTS FOR (n:Method) REQUIRE n.id IS UNIQUE",
+    "CREATE CONSTRAINT dataset_id_unique IF NOT EXISTS FOR (n:Dataset) REQUIRE n.id IS UNIQUE",
+    "CREATE CONSTRAINT topic_id_unique IF NOT EXISTS FOR (n:Topic) REQUIRE n.id IS UNIQUE",
+    "CREATE CONSTRAINT problem_id_unique IF NOT EXISTS FOR (n:Problem) REQUIRE n.id IS UNIQUE",
+]
+
+
+async def create_ontology_constraints(driver: AsyncDriver) -> None:
+    """Tạo Unique Constraints ontology idempotent. Gọi sau create_base_constraints khi startup."""
+    async with driver.session() as session:
+        for cql in _ONTOLOGY_CONSTRAINTS_CQL:
+            try:
+                await session.run(cql)
+            except Exception as e:
+                logger.warning("Không thể tạo Neo4j ontology constraint: %s — %s", cql, e)
+    logger.info("Neo4j ontology constraints đã được đảm bảo.")

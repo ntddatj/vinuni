@@ -1,5 +1,10 @@
 # Deferred Work
 
+## Deferred from: code review of story-4.3 (2026-06-18)
+
+- 🟡 **Handler `handle_ontology_extracted` không bọc 1 transaction atomic** — mỗi `session.run` auto-commit riêng; nếu lỗi giữa chừng, node/edge đã tạo trước vẫn commit. Rủi ro thấp: MERGE idempotent + guard `id` (đã thêm) khiến retry tự lành; giữ nhất quán với các handler hiện hữu. Cân nhắc `execute_write`/explicit tx nếu cần all-or-nothing. [backend/src/modules/graph_rag/infrastructure/neo4j_adapter.py:148]
+- 🟡 **Backfill chưa phân trang** — `POST /admin/backfill-graph-extraction` enqueue toàn bộ paper indexed trong 1 request. Đã giảm tải bằng `select(PaperORM.id)`; có giới hạn số tài liệu (Story 2.6) nên N bị chặn. Thêm phân trang/streaming khi corpus lớn. [backend/src/modules/admin/presentation/router.py:98]
+
 ## Deferred from: code review of story-3.6 (2026-06-17)
 
 - 🟠 **Race nhiều message cùng `thread_id`** — `aget_state(config)` chỉ key theo `thread_id`; hai run đồng thời cùng thread có thể đọc state lẫn nhau → commit `final_content`/`citation_map` sai. Pre-existing (mô hình checkpoint theo thread_id có từ trước 3.6). Cần per-thread lock hoặc chặn gửi khi đang stream. [backend/src/modules/orchestrator/application/use_cases.py:243]
@@ -98,3 +103,9 @@
 
 - **Unknown event_type DLQ quá nhanh (~15s)** — `outbox_worker.py` `_process_group`: event lạ tăng `retry_count` mỗi cron tick (5s), DLQ sau MAX_SYNC_RETRIES=3 (~15s). Đúng AC#12 nhưng rủi ro mất event forward-compat của Story 4.3 (sinh trước khi handler deploy) vì chưa có replay DLQ. Cân nhắc khi làm 4.3: nâng MAX_SYNC_RETRIES / dùng ngưỡng riêng theo `created_at` cho event lạ, hoặc thêm cơ chế replay DLQ.
 - **Test-isolation SQLite (pre-existing)** — `tests/unit/workspace/test_projects_api.py`: 35 errors + 1 failed khi chạy chung full suite do state SQLite rò rỉ giữa test; pass khi chạy đơn lẻ. Tái hiện trên baseline, không liên quan story 4.1. Cần fixture cô lập DB per-test (hoặc transaction rollback) — việc chung của test harness.
+
+## Deferred from: code review of story-4.2 (2026-06-18)
+
+- **`abstract`/`p.authors` không lưu trên Paper node Neo4j** — Adapter từ Story 4.1 chỉ MERGE `title/year/doi/arxiv_id/source/url/state` cho Paper; authors tách ra Author node + cạnh AUTHORED_BY, `abstract` không lưu đâu cả. Hệ quả: AC#13 (abstract trên Node Detail Card) luôn rỗng dù FE render đúng khi có data. Story 4.2 đã workaround phần tác giả bằng cách suy ra từ cạnh AUTHORED_BY, nhưng abstract cần ghi vào Neo4j. Spec 4.2 cấm sửa `neo4j_adapter.py` → để Story 4.3 (graph extraction) bổ sung property `p.abstract` + author metadata.
+- **`has_more` bỏ qua edge overflow** — `get_graph` tính `has_more` chỉ theo tổng node (>150). Nếu project <150 node nhưng >300 edge, edge bị cap im lặng, UI không báo. Đúng theo letter của spec (has_more = node-driven). Cân nhắc thêm cờ `edges_truncated` ở story sau nếu đồ thị dày cạnh.
+- **`existing_ids` query-string dài** — `expandNode` nối toàn bộ id node hiện có vào query param GET; đồ thị rất lớn có thể chạm giới hạn độ dài URL (HTTP 414). Quy mô MVP 150 node chưa chạm; cân nhắc chuyển sang POST body khi nâng giới hạn render.

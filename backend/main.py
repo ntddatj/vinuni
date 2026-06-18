@@ -19,6 +19,7 @@ from backend.src.modules.orchestrator.infrastructure.postgres_checkpointer impor
     close_postgres_checkpointer,
     setup_postgres_checkpointer,
 )
+from backend.src.modules.graph_rag.presentation.router import router as graph_router
 from backend.src.modules.orchestrator.presentation.citation_router import router as citation_router
 from backend.src.modules.orchestrator.presentation.router import router as orchestrator_router
 from backend.src.modules.search.presentation.router import router as search_router
@@ -66,6 +67,7 @@ app.include_router(identity_router, prefix="/api")
 app.include_router(workspace_router, prefix="/api")
 app.include_router(search_router, prefix="/api")
 app.include_router(ingestion_router, prefix="/api")
+app.include_router(graph_router, prefix="/api")
 app.include_router(orchestrator_router, prefix="/api")
 app.include_router(citation_router, prefix="/api")
 register_error_handlers(app)

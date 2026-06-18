@@ -27,11 +27,14 @@ export function ChatbotPanel() {
   const citationMapRef = useRef<Record<string, string>>({});
   const { t } = useTranslation();
 
+  const chatInputRef = useRef<HTMLInputElement>(null);
   const activeProjectId = useProjectStore((s) => s.activeProjectId);
   const activeTab = useWorkspaceStore((s) => s.activeTab);
   const documentCount = useWorkspaceStore((s) => s.documentCount);
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
   const setUploadModalOpen = useWorkspaceStore((s) => s.setUploadModalOpen);
+  const pendingChatInput = useWorkspaceStore((s) => s.pendingChatInput);
+  const setPendingChatInput = useWorkspaceStore((s) => s.setPendingChatInput);
   const {
     messages,
     activeThreadId,
@@ -61,6 +64,14 @@ export function ChatbotPanel() {
     citationMapRef.current = {};
     reset();
   }, [activeProjectId]);
+
+  // Graph→Chat bridge: khi có pendingChatInput → prefill textarea + focus, không auto-send
+  useEffect(() => {
+    if (!pendingChatInput) return;
+    setInputValue(pendingChatInput);
+    setPendingChatInput(null);
+    setTimeout(() => chatInputRef.current?.focus(), 50);
+  }, [pendingChatInput, setPendingChatInput]);
 
   useEffect(() => {
     if (!activeProjectId) {
@@ -308,6 +319,7 @@ export function ChatbotPanel() {
 
           <div className={styles.inputArea}>
             <input
+              ref={chatInputRef}
               className={styles.input}
               placeholder={activeProjectId ? t('chat.placeholder') : t('chat.inputDisabled')}
               disabled={!activeProjectId || isStreaming}
