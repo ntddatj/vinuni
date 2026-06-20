@@ -1,12 +1,48 @@
 """Application layer graph_rag — re-export entry points cho worker + read use cases."""
-from backend.src.modules.graph_rag.domain.entities import GraphData, GraphEdge, GraphNode
+import logging
+
+from backend.src.modules.graph_rag.domain.entities import (
+    GapContext,
+    GapFlaggedEdge,
+    GapFlaggedNode,
+    GraphContext,
+    GraphData,
+    GraphEdge,
+    GraphNode,
+)
 from backend.src.modules.graph_rag.infrastructure.outbox_worker import sync_outbox_task
 
-__all__ = ["sync_outbox_task", "GraphReadUseCase"]
+__all__ = ["sync_outbox_task", "GraphReadUseCase", "GapDetectionUseCase"]
 
-_NODE_LIMIT = 150
-_EDGE_LIMIT = 300
+_logger = logging.getLogger(__name__)
+
+_NODE_LIMIT = 250
+_EDGE_LIMIT = 400
 _EXPAND_LIMIT = 20
+
+# Neo4j label → nhãn hiển thị UI. Paper/Author xử lý riêng (lấy title/name);
+# entity ontology lấy name (Method/Dataset/Topic) hoặc description (Finding/Limitation/Problem).
+_ENTITY_LABEL_MAP = {
+    "Finding": "finding",
+    "Limitation": "limitation",
+    "Method": "method",
+    "Dataset": "dataset",
+    "Topic": "topic",
+    "Problem": "problem",
+}
+
+
+def _classify_node(n) -> tuple[str, str]:
+    """Map 1 Neo4j Node → (label hiển thị, title). Dùng chung cho get_graph + expand_node."""
+    labels = list(n.labels)
+    if "Author" in labels:
+        return "author", n.get("name", "")
+    if "Paper" in labels:
+        return "paper", n.get("title", "")
+    for neo_label, ui_label in _ENTITY_LABEL_MAP.items():
+        if neo_label in labels:
+            return ui_label, (n.get("name") or n.get("description") or "")
+    return "paper", n.get("title", "")
 
 
 class GraphReadUseCase:
@@ -27,11 +63,20 @@ class GraphReadUseCase:
             has_more = total_nodes > _NODE_LIMIT
 
             # Lấy nodes
+            # ORDER BY ưu tiên Paper > Author > entity: khi tổng node > _NODE_LIMIT, các node
+            # cấu trúc (paper/tác giả/cạnh CITES) LUÔN lọt vào khung hiển thị, entity ontology
+            # lấp phần còn lại — tránh tình trạng paper bị "trống" do entity chiếm hết budget.
             node_result = await session.run(
                 """
                 MATCH (n)
                 WHERE n.project_id = $pid AND NOT n:Deleted
-                RETURN n LIMIT $limit
+                RETURN n
+                ORDER BY CASE
+                    WHEN n:Paper THEN 0
+                    WHEN n:Author THEN 1
+                    ELSE 2
+                END
+                LIMIT $limit
                 """,
                 pid=project_id,
                 limit=_NODE_LIMIT,
@@ -44,13 +89,7 @@ class GraphReadUseCase:
             node_ids: set[str] = set()
             for rec in node_records:
                 n = rec["n"]
-                labels = list(n.labels)
-                if "Author" in labels:
-                    label = "author"
-                    title = n.get("name", "")
-                else:
-                    label = "paper"
-                    title = n.get("title", "")
+                label, title = _classify_node(n)
                 node = GraphNode(
                     id=n["id"],
                     label=label,
@@ -119,13 +158,7 @@ class GraphReadUseCase:
         edges: list[GraphEdge] = []
         for rec in records:
             n = rec["neighbor"]
-            labels = list(n.labels)
-            if "Author" in labels:
-                label = "author"
-                title = n.get("name", "")
-            else:
-                label = "paper"
-                title = n.get("title", "")
+            label, title = _classify_node(n)
             nodes.append(GraphNode(
                 id=n["id"],
                 label=label,
@@ -151,3 +184,165 @@ class GraphReadUseCase:
             ))
 
         return GraphData(nodes=nodes, edges=edges, has_more=False)
+
+
+_PRIORITY: dict[str, int] = {
+    "has_contradiction": 3,
+    "has_unfilled_limitation": 2,
+    "isolated_cluster": 1,
+}
+
+_CYPHER_CONTRADICTS = """
+MATCH (f1:Finding {project_id: $pid})-[:CONTRADICTS]->(f2:Finding {project_id: $pid})
+MATCH (p1:Paper {project_id: $pid})-[:HAS_FINDING]->(f1)
+MATCH (p2:Paper {project_id: $pid})-[:HAS_FINDING]->(f2)
+WHERE NOT p1:Deleted AND NOT p2:Deleted
+RETURN DISTINCT f1.id AS finding1_id, f2.id AS finding2_id,
+       p1.id AS paper1_id, p2.id AS paper2_id
+"""
+
+_CYPHER_ISOLATED = """
+MATCH (p:Paper {project_id: $pid}) WHERE NOT p:Deleted
+OPTIONAL MATCH (p)-[:CITES]-(other:Paper {project_id: $pid})
+WHERE NOT other:Deleted
+WITH p, count(other) AS cites_count
+WHERE cites_count = 0
+RETURN p.id AS paper_id
+"""
+
+_CYPHER_UNFILLED_LIMITATION = """
+MATCH (p:Paper {project_id: $pid})-[:HAS_LIMITATION]->(l:Limitation {project_id: $pid})
+WHERE NOT p:Deleted
+  AND NOT EXISTS {
+    MATCH (filler:Paper {project_id: $pid})-[:FILLS_GAP]->(l) WHERE NOT filler:Deleted
+  }
+RETURN DISTINCT p.id AS paper_id
+"""
+
+_CYPHER_GRAPH_SEARCH = """
+MATCH (start {project_id: $pid})-[r]-(neighbor {project_id: $pid})
+WHERE (start.title IN $entities OR start.name IN $entities)
+  AND NOT start:Deleted AND NOT neighbor:Deleted
+RETURN DISTINCT start, neighbor, r,
+       start.id AS start_id, neighbor.id AS neighbor_id,
+       elementId(r) AS rel_id, type(r) AS rel_type,
+       start.id = startNode(r).id AS start_is_source
+LIMIT 50
+"""
+
+
+class GapDetectionUseCase:
+    """Gap detection và graph search cho GraphRAG — dùng Cypher traversal thuần."""
+
+    def __init__(self, neo4j_driver) -> None:
+        self._driver = neo4j_driver
+
+    async def gap_detection(self, project_id: str) -> GapContext:
+        seen: dict[str, str] = {}  # paper_id → reason với priority
+        flagged_edges: list[GapFlaggedEdge] = []
+
+        def _add_node(paper_id: str, reason: str) -> None:
+            current = seen.get(paper_id)
+            if current is None or _PRIORITY[reason] > _PRIORITY[current]:
+                seen[paper_id] = reason
+
+        # AC#4: gap_detection KHÔNG bao giờ raise — bọc cả việc mở session (Neo4j
+        # down / driver lỗi) lẫn từng query để luôn trả GapContext (rỗng khi sự cố).
+        try:
+            async with self._driver.session() as session:
+                # Query 1: CONTRADICTS
+                try:
+                    result = await session.run(_CYPHER_CONTRADICTS, pid=project_id)
+                    records = [rec async for rec in result]
+                    for rec in records:
+                        flagged_edges.append(GapFlaggedEdge(
+                            finding1_id=rec["finding1_id"],
+                            finding2_id=rec["finding2_id"],
+                            paper1_id=rec["paper1_id"],
+                            paper2_id=rec["paper2_id"],
+                            reason="contradicts",
+                        ))
+                        _add_node(rec["paper1_id"], "has_contradiction")
+                        _add_node(rec["paper2_id"], "has_contradiction")
+                except Exception:
+                    _logger.warning("gap_detection: query 1 (CONTRADICTS) failed", exc_info=True)
+
+                # Query 2: Isolated Cluster
+                try:
+                    result = await session.run(_CYPHER_ISOLATED, pid=project_id)
+                    records = [rec async for rec in result]
+                    for rec in records:
+                        _add_node(rec["paper_id"], "isolated_cluster")
+                except Exception:
+                    _logger.warning("gap_detection: query 2 (ISOLATED) failed", exc_info=True)
+
+                # Query 3: Unfilled Limitations
+                try:
+                    result = await session.run(_CYPHER_UNFILLED_LIMITATION, pid=project_id)
+                    records = [rec async for rec in result]
+                    for rec in records:
+                        _add_node(rec["paper_id"], "has_unfilled_limitation")
+                except Exception:
+                    _logger.warning("gap_detection: query 3 (UNFILLED_LIMITATION) failed", exc_info=True)
+        except Exception:
+            _logger.warning("gap_detection: session acquisition failed", exc_info=True)
+            return GapContext()
+
+        flagged_nodes = [GapFlaggedNode(paper_id=pid, reason=r) for pid, r in seen.items()]
+        return GapContext(flagged_nodes=flagged_nodes, flagged_edges=flagged_edges)
+
+    async def graph_search(self, entities: list[str], project_id: str) -> GraphContext:
+        async with self._driver.session() as session:
+            try:
+                result = await session.run(
+                    _CYPHER_GRAPH_SEARCH,
+                    pid=project_id,
+                    entities=entities,
+                )
+                records = [rec async for rec in result]
+            except Exception:
+                _logger.warning("graph_search: query failed", exc_info=True)
+                return GraphContext()
+
+        nodes_map: dict[str, GraphNode] = {}
+        edges: list[GraphEdge] = []
+
+        for rec in records:
+            for node_key in ("start", "neighbor"):
+                n = rec[node_key]
+                nid = n["id"]
+                if nid not in nodes_map:
+                    labels = list(n.labels)
+                    if "Author" in labels:
+                        label = "author"
+                        title = n.get("name", "")
+                    else:
+                        label = "paper"
+                        title = n.get("title", "")
+                    nodes_map[nid] = GraphNode(
+                        id=nid,
+                        label=label,
+                        title=title,
+                        authors=n.get("authors") or [],
+                        year=n.get("year"),
+                        abstract=n.get("abstract"),
+                        state=n.get("state"),
+                        project_id=n.get("project_id"),
+                    )
+
+            neighbor_id = rec["neighbor_id"]
+            start_id = rec["start_id"]
+            if rec["start_is_source"]:
+                source_id = start_id
+                target_id = neighbor_id
+            else:
+                source_id = neighbor_id
+                target_id = start_id
+            edges.append(GraphEdge(
+                id=rec["rel_id"],
+                source=source_id,
+                target=target_id,
+                type=rec["rel_type"],
+            ))
+
+        return GraphContext(nodes=list(nodes_map.values()), edges=edges)

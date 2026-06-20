@@ -12,13 +12,14 @@ logger = logging.getLogger(__name__)
 _CODE_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
 
 METADATA_EXTRACTION_PROMPT = """Extract bibliographic metadata from this academic text.
-Return ONLY a JSON object with these exact keys: title, authors, abstract, year.
+Return ONLY a JSON object with these exact keys: title, authors, abstract, year, doi.
 
 Rules:
 - title: string (full paper title, empty string if not found)
 - authors: list of strings (author names, empty list if not found)
 - abstract: string (paper abstract or summary, empty string if not found)
 - year: integer or null (publication year 4 digits, null if not found)
+- doi: string or null (the DOI OF THIS paper, e.g. "10.1234/abcd". Strip any "https://doi.org/" prefix. null if not found. Do NOT invent a DOI.)
 
 Text to analyze (first pages):
 {text}
@@ -26,6 +27,9 @@ Text to analyze (first pages):
 Filename hint: {filename}
 
 Respond with ONLY the JSON object, no markdown:"""
+
+# DOI hợp lệ bắt đầu bằng "10." + registrant + "/" + suffix (Crossref pattern).
+_DOI_RE = re.compile(r"^10\.\d{4,9}/\S+$")
 
 
 class LLMMetadataExtractor:
@@ -47,10 +51,11 @@ class LLMMetadataExtractor:
                 authors=self._parse_authors(data.get("authors")),
                 abstract=str(data.get("abstract", "")) or "",
                 year=self._parse_year(data.get("year")),
+                doi=self._parse_doi(data.get("doi")),
             )
         except Exception as e:
             logger.warning("LLMMetadataExtractor: lỗi trích xuất metadata từ '%s': %s", filename, e)
-            return ExtractedMetadata(title="", authors=[], abstract="", year=None)
+            return ExtractedMetadata(title="", authors=[], abstract="", year=None, doi=None)
 
     @staticmethod
     def _parse_authors(raw: object) -> list[str]:
@@ -60,6 +65,21 @@ class LLMMetadataExtractor:
         if isinstance(raw, str):
             return [a.strip() for a in raw.split(",") if a.strip()]
         return []
+
+    @staticmethod
+    def _parse_doi(raw: object) -> str | None:
+        """Chuẩn hóa DOI: bỏ tiền tố URL/'doi:', lowercase, validate pattern Crossref.
+        Trả None nếu không phải DOI hợp lệ (chống lưu rác/LLM bịa link)."""
+        if not isinstance(raw, str):
+            return None
+        s = raw.strip().lower()
+        for prefix in ("https://doi.org/", "http://doi.org/", "https://dx.doi.org/",
+                       "http://dx.doi.org/", "doi:"):
+            if s.startswith(prefix):
+                s = s[len(prefix):]
+                break
+        s = s.strip()
+        return s if _DOI_RE.match(s) else None
 
     @staticmethod
     def _parse_year(raw: object) -> int | None:

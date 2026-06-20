@@ -1,8 +1,8 @@
 import Cytoscape from 'cytoscape';
 import fcose from 'cytoscape-fcose';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchGraph, expandNode, getSyncStatus } from '@/api/graph';
-import type { GraphNode, GraphEdge } from '@/types/graph';
+import { fetchGraph, expandNode, getSyncStatus, fetchGaps } from '@/api/graph';
+import type { GraphNode, GraphEdge, GapResponse } from '@/types/graph';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { GraphLegend } from './GraphLegend';
@@ -23,6 +23,35 @@ const TOKEN = {
   inkSecondary: '#78716C',
   borderHairline: '#E5E2DC',
 } as const;
+
+// Màu cho từng loại thực thể ontology (Finding/Method/...). Node nhỏ, tô đặc, có nhãn.
+// Phân biệt với paper (vòng tròn viền), author (kim cương tím), gap (viền dày màu).
+const ENTITY_NODE_COLORS: Record<string, string> = {
+  finding: '#14B8A6', // teal
+  limitation: '#EC4899', // pink
+  method: '#6366F1', // indigo
+  dataset: '#06B6D4', // cyan
+  topic: '#EAB308', // amber
+  problem: '#F97316', // orange
+};
+
+const ENTITY_NODE_STYLES: Cytoscape.StylesheetStyle[] = Object.entries(ENTITY_NODE_COLORS).map(
+  ([label, color]) => ({
+    selector: `node[label="${label}"]`,
+    style: {
+      shape: 'ellipse',
+      'background-color': color,
+      'border-width': 0,
+      label: 'data(title)',
+      'font-size': 8,
+      color: TOKEN.inkSecondary,
+      'text-wrap': 'ellipsis',
+      'text-max-width': '70px',
+      width: '16px',
+      height: '16px',
+    },
+  }),
+);
 
 const CY_STYLE: Cytoscape.StylesheetStyle[] = [
   {
@@ -94,6 +123,31 @@ const CY_STYLE: Cytoscape.StylesheetStyle[] = [
       'curve-style': 'bezier',
     },
   },
+  ...ENTITY_NODE_STYLES,
+  {
+    selector: 'node.gap-contradiction',
+    style: {
+      'border-color': '#EF4444',
+      'border-width': 4,
+      'border-style': 'solid',
+    },
+  },
+  {
+    selector: 'node.gap-isolated',
+    style: {
+      'border-color': '#3B82F6',
+      'border-width': 4,
+      'border-style': 'solid',
+    },
+  },
+  {
+    selector: 'node.gap-unfilled',
+    style: {
+      'border-color': '#F59E0B',
+      'border-width': 4,
+      'border-style': 'solid',
+    },
+  },
   {
     selector: 'node:selected',
     style: {
@@ -122,11 +176,19 @@ export function KnowledgeMapTab({ projectId }: KnowledgeMapTabProps) {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [graphNodes, setGraphNodes] = useState<GraphNode[]>([]);
   const [graphEdges, setGraphEdges] = useState<GraphEdge[]>([]);
+  const [gapMode, setGapMode] = useState(false);
+  const [gapData, setGapData] = useState<GapResponse | null>(null);
+  const [gapLoading, setGapLoading] = useState(false);
 
   // Giữ showAuthors mới nhất để áp lại sau khi load/expand mà không cần đưa vào deps.
   const showAuthorsRef = useRef(showAuthors);
   const lastSyncingRef = useRef(false);
+  // Refs để tránh stale closure trong loadGraph callback
+  const gapModeRef = useRef(gapMode);
+  const gapDataRef = useRef(gapData);
   showAuthorsRef.current = showAuthors;
+  gapModeRef.current = gapMode;
+  gapDataRef.current = gapData;
 
   const applyAuthorVisibility = useCallback(() => {
     const cy = cyRef.current;
@@ -138,6 +200,28 @@ export function KnowledgeMapTab({ projectId }: KnowledgeMapTabProps) {
       cy.elements('[label="author"]').style('display', 'none');
       cy.edges('[type="AUTHORED_BY"]').style('display', 'none');
     }
+  }, []);
+
+  const applyGapClasses = useCallback((data: GapResponse) => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.elements().removeClass('gap-contradiction gap-unfilled gap-isolated');
+    const contradictionIds = new Set(
+      data.flagged_nodes.filter((n) => n.reason === 'has_contradiction').map((n) => n.paper_id),
+    );
+    const unfilledIds = new Set(
+      data.flagged_nodes
+        .filter((n) => n.reason === 'has_unfilled_limitation' && !contradictionIds.has(n.paper_id))
+        .map((n) => n.paper_id),
+    );
+    const isolatedIds = new Set(
+      data.flagged_nodes
+        .filter((n) => n.reason === 'isolated_cluster' && !contradictionIds.has(n.paper_id) && !unfilledIds.has(n.paper_id))
+        .map((n) => n.paper_id),
+    );
+    contradictionIds.forEach((id) => cy.getElementById(id).addClass('gap-contradiction'));
+    unfilledIds.forEach((id) => cy.getElementById(id).addClass('gap-unfilled'));
+    isolatedIds.forEach((id) => cy.getElementById(id).addClass('gap-isolated'));
   }, []);
 
   // Build cy elements from node/edge lists
@@ -223,6 +307,10 @@ export function KnowledgeMapTab({ projectId }: KnowledgeMapTabProps) {
         cy.add(elements);
         cy.layout({ name: 'fcose', animate: false } as Parameters<typeof cy.layout>[0]).run();
         applyAuthorVisibility();
+        // Re-apply gap classes nếu gap mode đang ON (loadGraph xóa elements → mất classes)
+        if (gapModeRef.current && gapDataRef.current) {
+          applyGapClasses(gapDataRef.current);
+        }
         setHasMore(data.has_more);
         setGraphNodes(data.nodes);
         setGraphEdges(data.edges);
@@ -236,7 +324,7 @@ export function KnowledgeMapTab({ projectId }: KnowledgeMapTabProps) {
         if (!isCancelled()) setLoading(false);
       }
     },
-    [toCyElements, applyAuthorVisibility],
+    [toCyElements, applyAuthorVisibility, applyGapClasses],
   );
 
   // Load graph after Cytoscape exists and the graph tab is visible.
@@ -265,6 +353,54 @@ export function KnowledgeMapTab({ projectId }: KnowledgeMapTabProps) {
   useEffect(() => {
     applyAuthorVisibility();
   }, [showAuthors, applyAuthorVisibility]);
+
+  // Gap mode toggle ON → fetch + apply classes; OFF → remove classes
+  useEffect(() => {
+    if (!gapMode || !projectId) {
+      cyRef.current?.elements().removeClass('gap-contradiction gap-unfilled gap-isolated');
+      setGapData(null);
+      // Clear loading: nếu toggle OFF (hoặc bỏ chọn dự án) khi fetchGaps còn in-flight,
+      // promise cũ đã bị `cancelled` nên .finally không reset → nút sẽ kẹt disabled.
+      setGapLoading(false);
+      // Bỏ chọn dự án khi gap mode đang ON → tắt hẳn để legend/nút không hiển thị
+      // chú giải gap trên đồ thị rỗng (gap là theo từng dự án).
+      if (gapMode) setGapMode(false);
+      return;
+    }
+    let cancelled = false;
+    setGapLoading(true);
+    fetchGaps(projectId)
+      .then((data) => {
+        if (cancelled) return;
+        setGapData(data);
+        applyGapClasses(data);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setGapMode(false);
+      })
+      .finally(() => {
+        if (!cancelled) setGapLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [gapMode, projectId, applyGapClasses]);
+
+  // Pulsing animation khi gap mode ON
+  useEffect(() => {
+    if (!gapMode || !gapData || !cyRef.current) return;
+    const cy = cyRef.current;
+    let wide = true;
+    const interval = setInterval(() => {
+      cy.elements('.gap-contradiction, .gap-unfilled, .gap-isolated').style('border-width', wide ? '5px' : '3px');
+      wide = !wide;
+    }, 750);
+    return () => {
+      clearInterval(interval);
+      // Xóa inline border-width bypass do pulsing đặt, nếu không nó sẽ đè style theo
+      // class (4px) và còn sót lại trên node sau khi removeClass khi tắt gap mode.
+      cyRef.current?.elements('.gap-contradiction, .gap-unfilled, .gap-isolated').removeStyle('border-width');
+    };
+  }, [gapMode, gapData]);
 
   // Sync-status polling (10s interval, chỉ khi tab Bản đồ Tri thức đang active — AC#18)
   useEffect(() => {
@@ -374,6 +510,14 @@ export function KnowledgeMapTab({ projectId }: KnowledgeMapTabProps) {
         <button className={styles.resetBtn} onClick={resetView} type="button">
           {t('graph.resetView')}
         </button>
+        <button
+          className={`${styles.gapModeBtn} ${gapMode ? styles.gapModeBtnActive : ''}`}
+          onClick={() => setGapMode((v) => !v)}
+          disabled={!projectId || gapLoading}
+          type="button"
+        >
+          {gapLoading ? t('graph.gapModeLoading') : gapMode ? t('graph.gapModeOff') : t('graph.gapModeOn')}
+        </button>
       </div>
 
       <div className={styles.canvasWrapper}>
@@ -398,7 +542,7 @@ export function KnowledgeMapTab({ projectId }: KnowledgeMapTabProps) {
 
         <div ref={containerRef} className={styles.canvas} />
 
-        <GraphLegend />
+        <GraphLegend gapMode={gapMode} />
 
         {selectedNode && (
           <NodeDetailCard
@@ -407,6 +551,14 @@ export function KnowledgeMapTab({ projectId }: KnowledgeMapTabProps) {
             allEdges={graphEdges}
             onClose={() => setSelectedNode(null)}
             onExpand={selectedNode.label === 'paper' ? () => handleExpand(selectedNode.id) : undefined}
+            gapReason={(() => {
+              if (!gapMode || !gapData) return null;
+              const entry = gapData.flagged_nodes.find((n) => n.paper_id === selectedNode.id);
+              if (!entry) return null;
+              if (entry.reason === 'has_contradiction') return 'contradiction' as const;
+              if (entry.reason === 'has_unfilled_limitation') return 'unfilled_limitation' as const;
+              return 'isolated' as const;
+            })()}
           />
         )}
       </div>

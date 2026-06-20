@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { KnowledgeMapTab } from '../KnowledgeMapTab';
 import * as graphApi from '@/api/graph';
@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => {
     show: vi.fn(),
     hide: vi.fn(),
     style: vi.fn(),
+    removeStyle: vi.fn(),
     map: vi.fn().mockReturnValue([]),
     lock: vi.fn(),
     unlock: vi.fn(),
@@ -19,11 +20,17 @@ const mocks = vi.hoisted(() => {
     }),
     layout: vi.fn().mockReturnValue({ run: vi.fn() }),
   };
+  const addClassMock = vi.fn();
+  const nodeElement = {
+    addClass: addClassMock,
+    removeClass: vi.fn(),
+  };
   const cy = {
     add: vi.fn().mockReturnThis(),
-    elements: vi.fn().mockReturnValue(elementCollection),
+    elements: vi.fn().mockReturnValue({ ...elementCollection, removeClass: vi.fn() }),
     nodes: vi.fn().mockReturnValue(elementCollection),
     edges: vi.fn().mockReturnValue(elementCollection),
+    getElementById: vi.fn().mockReturnValue(nodeElement),
     on: vi.fn(),
     off: vi.fn(),
     layout: vi.fn().mockReturnValue({ run: vi.fn() }),
@@ -34,6 +41,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     cy,
+    addClassMock,
     getActiveTab: () => activeTab,
     setActiveTab: (tab: string) => { activeTab = tab; },
   };
@@ -187,5 +195,157 @@ describe('KnowledgeMapTab', () => {
     render(<KnowledgeMapTab projectId="proj-1" />);
     expect(screen.getByText(/khôi phục góc nhìn/i)).toBeInTheDocument();
     await waitFor(() => expect(graphApi.fetchGraph).toHaveBeenCalledWith('proj-1'));
+  });
+
+  it('renders gap mode button', async () => {
+    render(<KnowledgeMapTab projectId="proj-1" />);
+    expect(screen.getByText(/tìm khoảng trống/i)).toBeInTheDocument();
+    await waitFor(() => expect(graphApi.fetchGraph).toHaveBeenCalledWith('proj-1'));
+  });
+
+  it('toggles gap mode on click — fetchGaps called with projectId', async () => {
+    vi.mocked(graphApi.fetchGaps).mockResolvedValue({ flagged_nodes: [], flagged_edges: [] });
+
+    render(<KnowledgeMapTab projectId="proj-1" />);
+    await waitFor(() => expect(graphApi.fetchGraph).toHaveBeenCalled());
+
+    const gapBtn = screen.getByText(/tìm khoảng trống/i);
+    fireEvent.click(gapBtn);
+
+    await waitFor(() => expect(graphApi.fetchGaps).toHaveBeenCalledWith('proj-1'));
+  });
+
+  it('applies gap-contradiction class to contradiction nodes', async () => {
+    vi.mocked(graphApi.fetchGaps).mockResolvedValue({
+      flagged_nodes: [{ paper_id: 'p1', reason: 'has_contradiction' }],
+      flagged_edges: [],
+    });
+
+    render(<KnowledgeMapTab projectId="proj-1" />);
+    await waitFor(() => expect(graphApi.fetchGraph).toHaveBeenCalled());
+
+    const gapBtn = screen.getByText(/tìm khoảng trống/i);
+    fireEvent.click(gapBtn);
+
+    await waitFor(() => expect(mocks.cy.getElementById).toHaveBeenCalledWith('p1'));
+    await waitFor(() => expect(mocks.addClassMock).toHaveBeenCalledWith('gap-contradiction'));
+  });
+
+  it('removes gap classes on gap mode off', async () => {
+    vi.mocked(graphApi.fetchGaps).mockResolvedValue({
+      flagged_nodes: [{ paper_id: 'p1', reason: 'isolated_cluster' }],
+      flagged_edges: [],
+    });
+    const removeClassMock = vi.fn();
+    mocks.cy.elements.mockReturnValue({
+      removeClass: removeClassMock,
+      style: vi.fn(),
+      removeStyle: vi.fn(),
+      remove: vi.fn(),
+      length: 0,
+      map: vi.fn().mockReturnValue([]),
+    });
+
+    render(<KnowledgeMapTab projectId="proj-1" />);
+    await waitFor(() => expect(graphApi.fetchGraph).toHaveBeenCalled());
+
+    // Toggle ON
+    fireEvent.click(screen.getByText(/tìm khoảng trống/i));
+    await waitFor(() => expect(graphApi.fetchGaps).toHaveBeenCalled());
+
+    // Toggle OFF — nút bây giờ đang hiện "Ẩn khoảng trống"
+    fireEvent.click(screen.getByText(/ẩn khoảng trống/i));
+
+    await waitFor(() => expect(removeClassMock).toHaveBeenCalledWith('gap-contradiction gap-unfilled gap-isolated'));
+  });
+
+  it('applies gap-unfilled class to has_unfilled_limitation nodes', async () => {
+    vi.mocked(graphApi.fetchGaps).mockResolvedValue({
+      flagged_nodes: [{ paper_id: 'p2', reason: 'has_unfilled_limitation' }],
+      flagged_edges: [],
+    });
+
+    render(<KnowledgeMapTab projectId="proj-1" />);
+    await waitFor(() => expect(graphApi.fetchGraph).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText(/tìm khoảng trống/i));
+
+    await waitFor(() => expect(mocks.cy.getElementById).toHaveBeenCalledWith('p2'));
+    await waitFor(() => expect(mocks.addClassMock).toHaveBeenCalledWith('gap-unfilled'));
+  });
+
+  it('applies gap-isolated (blue) class to isolated_cluster nodes', async () => {
+    vi.mocked(graphApi.fetchGaps).mockResolvedValue({
+      flagged_nodes: [{ paper_id: 'p3', reason: 'isolated_cluster' }],
+      flagged_edges: [],
+    });
+
+    render(<KnowledgeMapTab projectId="proj-1" />);
+    await waitFor(() => expect(graphApi.fetchGraph).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText(/tìm khoảng trống/i));
+
+    await waitFor(() => expect(mocks.cy.getElementById).toHaveBeenCalledWith('p3'));
+    await waitFor(() => expect(mocks.addClassMock).toHaveBeenCalledWith('gap-isolated'));
+  });
+
+  it('dedup: contradiction wins over unfilled for same paper', async () => {
+    vi.mocked(graphApi.fetchGaps).mockResolvedValue({
+      flagged_nodes: [
+        { paper_id: 'p4', reason: 'has_contradiction' },
+        { paper_id: 'p4', reason: 'has_unfilled_limitation' },
+      ],
+      flagged_edges: [],
+    });
+
+    render(<KnowledgeMapTab projectId="proj-1" />);
+    await waitFor(() => expect(graphApi.fetchGraph).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText(/tìm khoảng trống/i));
+
+    await waitFor(() => expect(mocks.addClassMock).toHaveBeenCalledWith('gap-contradiction'));
+    expect(mocks.addClassMock).not.toHaveBeenCalledWith('gap-unfilled');
+  });
+
+  it('passes gapMode to GraphLegend — gap legend items appear', async () => {
+    vi.mocked(graphApi.fetchGaps).mockResolvedValue({ flagged_nodes: [], flagged_edges: [] });
+
+    render(<KnowledgeMapTab projectId="proj-1" />);
+    await waitFor(() => expect(graphApi.fetchGraph).toHaveBeenCalled());
+
+    expect(screen.queryByText('Khoảng trống')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText(/tìm khoảng trống/i));
+    await waitFor(() => expect(graphApi.fetchGaps).toHaveBeenCalled());
+
+    expect(screen.getByText('Khoảng trống')).toBeInTheDocument();
+  });
+
+  it('clears gap state when project is deselected mid-fetch — button not stuck disabled', async () => {
+    // fetchGaps treo (chưa resolve) để mô phỏng cửa sổ in-flight
+    let resolveGaps: (v: { flagged_nodes: never[]; flagged_edges: never[] }) => void = () => {};
+    vi.mocked(graphApi.fetchGaps).mockReturnValue(
+      new Promise((res) => {
+        resolveGaps = res;
+      }) as ReturnType<typeof graphApi.fetchGaps>,
+    );
+
+    const { rerender } = render(<KnowledgeMapTab projectId="proj-1" />);
+    await waitFor(() => expect(graphApi.fetchGraph).toHaveBeenCalled());
+
+    // Bật gap mode → fetchGaps in-flight, gapLoading = true
+    fireEvent.click(screen.getByText(/tìm khoảng trống/i));
+    await waitFor(() => expect(graphApi.fetchGaps).toHaveBeenCalledWith('proj-1'));
+
+    // Bỏ chọn dự án khi fetch còn treo → effect chạy lại nhánh reset
+    rerender(<KnowledgeMapTab projectId={null} />);
+
+    // Resolve promise cũ (đã bị cancelled) — không được làm kẹt gapLoading
+    await act(async () => {
+      resolveGaps({ flagged_nodes: [], flagged_edges: [] });
+    });
+
+    // Legend gap đã ẩn (gapData cleared) → state đã được reset sạch
+    expect(screen.queryByText('Khoảng trống')).not.toBeInTheDocument();
   });
 });

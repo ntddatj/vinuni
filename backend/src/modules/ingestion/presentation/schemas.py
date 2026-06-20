@@ -16,6 +16,7 @@ class UploadResponseSchema(BaseModel):
     authors: list[str]
     abstract: str
     year: int | None
+    doi: str | None = None
 
 
 class ConfirmRequestSchema(BaseModel):
@@ -30,6 +31,7 @@ class ConfirmRequestSchema(BaseModel):
     abstract: str
     year: int | None
     project_id: str
+    doi: str | None = None
 
 
 class ConfirmResponseSchema(BaseModel):

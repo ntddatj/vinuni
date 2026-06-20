@@ -50,6 +50,9 @@ Return ONLY a valid JSON object (no markdown, no explanation):
   ],
   "supports": [
     {{"from_id": "f1", "to_id": "f2"}}
+  ],
+  "references": [
+    {{"title": "Cited paper title", "doi": "10.xxxx/yyyy", "year": 2020}}
   ]
 }}
 
@@ -63,6 +66,7 @@ Rules:
 - contradicts/supports: ONLY within findings extracted from THIS paper
 - Use simple IDs like "f1", "f2", "l1" (no special chars, no spaces)
 - Empty array [] if none found for a category
+- references: extract the list of works CITED by this paper from its References/Bibliography section. Each entry: title (required), doi (if present, else omit), year (if present, else omit). Empty array [] if no reference section found. Do NOT invent references.
 - JSON only, no markdown"""
 
 _ENTITY_KEYS = {"findings", "limitations", "methods", "datasets", "topics", "problems"}
@@ -88,7 +92,7 @@ class GraphExtractor:
                 title=title,
                 authors="",
                 abstract=abstract,
-                text=text[:30000],
+                text=text,
             )
             result = await llm.ainvoke(prompt)
             content = self._coerce_to_text(result.content)
@@ -103,13 +107,15 @@ class GraphExtractor:
             logger.warning("GraphExtractor: kết quả không phải dict cho paper %s", paper_id)
             return None
 
-        has_entity = any(data.get(k) for k in _ENTITY_KEYS)
+        has_entity = any(data.get(k) for k in _ENTITY_KEYS) or bool(data.get("references"))
         if not has_entity:
             logger.warning(
                 "GraphExtractor: không có entity nào được trích xuất cho paper %s", paper_id
             )
             return None
 
+        # Đảm bảo references luôn có trong dict (mặc định [] nếu LLM bỏ sót)
+        data.setdefault("references", [])
         return data
 
     @staticmethod

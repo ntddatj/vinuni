@@ -27,3 +27,30 @@ class GraphData:
     nodes: list[GraphNode] = field(default_factory=list)
     edges: list[GraphEdge] = field(default_factory=list)
     has_more: bool = False
+
+
+@dataclass
+class GapFlaggedNode:
+    paper_id: str
+    reason: str  # "isolated_cluster" | "has_unfilled_limitation" | "has_contradiction"
+
+
+@dataclass
+class GapFlaggedEdge:
+    finding1_id: str
+    finding2_id: str
+    paper1_id: str
+    paper2_id: str
+    reason: str  # "contradicts"
+
+
+@dataclass
+class GapContext:
+    flagged_nodes: list[GapFlaggedNode] = field(default_factory=list)
+    flagged_edges: list[GapFlaggedEdge] = field(default_factory=list)
+
+
+@dataclass
+class GraphContext:
+    nodes: list[GraphNode] = field(default_factory=list)
+    edges: list[GraphEdge] = field(default_factory=list)

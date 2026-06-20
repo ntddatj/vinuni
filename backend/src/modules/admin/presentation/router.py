@@ -24,8 +24,10 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 _NUMERIC_SETTING_KEYS = {
     "MAX_PAPERS_PER_PROJECT",
     "BROAD_QUERY_THRESHOLD",
-    "GC_RETENTION_DAYS",   # Story 4.1: số ngày giữ dữ liệu xóa mềm trước khi GC xóa cứng
-    "MAX_SYNC_RETRIES",    # Story 4.1: số lần retry sync Postgres→Neo4j trước khi vào DLQ
+    "GC_RETENTION_DAYS",          # Story 4.1: số ngày giữ dữ liệu xóa mềm trước khi GC xóa cứng
+    "MAX_SYNC_RETRIES",           # Story 4.1: số lần retry sync Postgres→Neo4j trước khi vào DLQ
+    "INGEST_MAX_PDF_PAGES",       # Story 4.9: số trang PDF tối đa parse ở Stage-1 (default worker: 50)
+    "INGEST_MAX_EXTRACT_CHARS",   # Story 4.9: số ký tự text tối đa giữ lại sau parse (default worker: 150000)
 }
 ALLOWED_SETTING_KEYS = _NUMERIC_SETTING_KEYS
 

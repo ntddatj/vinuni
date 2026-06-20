@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+  body { background: #eef1f5; }
+  .app { width: 1600px; height: 900px; background: #fff; display: flex; flex-direction: column; border: 1px solid #d0d5dd; }
+  /* HÀNG TRÊN CÙNG: brand + nút hệ thống — MỘT dải liền, kẻ ngang suốt ở dưới */
+  .topbar { display: flex; align-items: center; border-bottom: 1px solid #e4e7ec; flex: 0 0 auto; }
+  /* PHẦN DƯỚI: sidebar trái + main phải */
+  .below { flex: 1; min-height: 0; display: flex; }
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+  /* HÀNG 1 — Header (KHÔNG viền dưới riêng — đường kẻ ngang suốt do .topbar phụ trách) */
+  .header { height: 56px; display: flex; align-items: center; justify-content: space-between;
+            padding: 0 20px; background: #fff; flex: 1; }
+  .logo { font-size: 17px; font-weight: 700; color: #1d2939; }
+  .logo .badge { font-size: 11px; font-weight: 600; color: #fff; background: #6366f1; padding: 2px 8px; border-radius: 10px; margin-left: 8px; vertical-align: middle; }
+  .header-actions { display: flex; gap: 10px; align-items: center; }
+  .hbtn { font-size: 13px; color: #475467; border: 1px solid #e4e7ec; background:#fff; padding: 6px 12px; border-radius: 8px; }
+  .hbtn.warn { color: #b42318; border-color:#fda29b; }
+
+  /* HÀNG 2 — Ô chat độc lập (luôn hiện, ngắn ~1/2 màn, canh giữa) */
+  .chatbar { flex: 0 0 auto; padding: 12px 20px; border-bottom: 1px solid #e4e7ec;
+             background: #f9fafb; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .chatbar .inputrow { display:flex; align-items:center; gap:10px; width: 50%; min-width: 520px; }
+  .chatbar .ico { font-size: 16px; color:#6366f1; }
+  .chatbar input { flex: 1; height: 42px; border: 1.5px solid #d0d5dd; border-radius: 10px;
+                   padding: 0 14px; font-size: 14px; outline: none; }
+  .chatbar input:focus { border-color:#6366f1; }
+  .chatbar .send { height: 42px; padding: 0 22px; background: #6366f1; color: #fff; border: none;
+                   border-radius: 10px; font-size: 14px; font-weight: 600; }
+  .chatbar .pills { display:flex; gap:6px; justify-content:center; }
+  .pill { font-size:12px; color:#475467; border:1px solid #d0d5dd; background:#fff; padding:5px 10px; border-radius:14px; }
+
+  /* HÀNG 3 — Thân: giữa = trợ lý (messages) · phải = nội dung 3 tab */
+  .body { flex: 1; display: flex; min-height: 0; }
+
+  /* Brand nằm trong .topbar, rộng = sidebar, KHÔNG vạch dọc ngăn với nút hệ thống */
+  .brand { width:220px; flex:0 0 auto; height:56px; display:flex; align-items:center; gap:8px;
+           font-size:15px; font-weight:700; color:#1d2939; padding:0 16px; }
+  .brand .badge { font-size:10px; font-weight:600; color:#fff; background:#6366f1; padding:2px 7px; border-radius:10px; }
+
+  /* Sidebar dự án — dưới topbar, viền phải chỉ chạy ở phần dưới */
+  .sidebar { width: 220px; flex:0 0 auto; border-right: 1px solid #e4e7ec; background:#fff; padding:16px 14px; overflow:auto; }
+  .sidebar .new { width:100%; border:1.5px dashed #c7cdd6; color:#475467; background:#fbfcfd; border-radius:8px; padding:9px; font-size:13px; margin-bottom:16px; }
+  .sidebar .lbl { font-size:11px; color:#98a2b3; letter-spacing:.5px; margin-bottom:8px; }
+  .sidebar .proj { font-size:14px; color:#1d2939; padding:8px 6px; border-radius:6px; }
+  .sidebar .proj.active { background:#eef2ff; color:#4338ca; font-weight:600; }
+
+  /* CỘT NỘI DUNG 3 tab (nay ở BÊN PHẢI) */
+  .content { flex: 1; min-width: 0; display:flex; flex-direction:column; border-left: 1px solid #e4e7ec; }
+  .tabs { display:flex; align-items:center; gap:12px; padding: 14px 20px 0; border-bottom:1px solid #e4e7ec; }
+  .tab { font-size:14px; color:#667085; padding-bottom:12px; }
+  .tab.active { color:#4338ca; font-weight:600; border-bottom:2px solid #4338ca; }
+  .tab-sep { font-size:20px; color:#cbd2dc; padding-bottom:12px; margin:0 4px; }
+  .content-body { flex:1; padding: 24px; color:#475467; font-size:14px; display:flex; align-items:center; justify-content:center; }
+  .map-mock { width:90%; height:80%; border:1px dashed #d0d5dd; border-radius:10px; display:flex; align-items:center; justify-content:center; color:#98a2b3; }
+
+  /* CỘT GIỮA — Trợ lý nghiên cứu (chỉ phần messages) */
+  .assistant { width: 460px; flex:0 0 auto; display:flex; flex-direction:column; background:#fff; position:relative; }
+  .assistant .res-handle { position:absolute; right:0; top:0; bottom:0; width:5px; cursor:col-resize; background:transparent; z-index:2; }
+  .assistant .res-handle:hover { background:#c7d2fe; }
+  .assistant .a-head { display:flex; align-items:center; justify-content:space-between; padding: 12px 16px; border-bottom:1px solid #e4e7ec; }
+  .assistant .a-head .t { font-size:14px; font-weight:600; color:#1d2939; }
+  .assistant .a-head .collapse { font-size:18px; color:#98a2b3; }
+  .msgs { flex:1; overflow:auto; padding: 16px; display:flex; flex-direction:column; gap:14px; }
+  .msg { max-width:90%; font-size:13.5px; line-height:1.55; }
+  .msg.user { align-self:flex-end; background:#eef2ff; color:#3730a3; padding:10px 12px; border-radius:12px 12px 2px 12px; }
+  .msg.ai { align-self:flex-start; background:#f9fafb; color:#1d2939; padding:12px 14px; border-radius:12px 12px 12px 2px; border:1px solid #eef0f3; }
+  .msg.ai h4 { font-size:14px; margin:2px 0 6px; }
+  .msg.ai ul { margin:6px 0 6px 18px; }
+  .msg.ai li { margin-bottom:4px; }
+  .msg.ai p { margin:6px 0; }
+  .cite { display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:600;
+          color:#4338ca; background:#eef2ff; border:1px solid #c7d2fe; border-radius:5px; padding:0 5px; height:17px; margin:0 1px; vertical-align:1px; }
+  .note { position:absolute; bottom:10px; left:0; right:0; text-align:center; font-size:11px; color:#98a2b3; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HÀNG TRÊN CÙNG: brand + nút hệ thống — MỘT dải liền, kẻ ngang suốt ở dưới -->
+  <div class="topbar">
+    <div class="brand">🔬 Trợ lý nghiên cứu <span class="badge">GMO</span></div>
+    <div class="header">
+      <div></div>
+      <div class="header-actions">
+        <button class="hbtn">⚙ Cài đặt Hệ thống</button>
+        <button class="hbtn">🔑 API Keys</button>
+        <button class="hbtn">🌙</button>
+        <button class="hbtn">VI | EN</button>
+        <button class="hbtn warn">⏻ Đăng xuất</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHẦN DƯỚI: sidebar trái + main phải -->
+  <div class="below">
+
+  <!-- CỘT NGOÀI CÙNG TRÁI: Sidebar dự án -->
+  <div class="sidebar">
+    <button class="new">+ Tạo dự án mới</button>
+    <div class="lbl">DANH SÁCH DỰ ÁN</div>
+    <div class="proj active">GMO</div>
+    <div class="proj">DNA</div>
+    <div class="proj">GraphRAG</div>
+  </div>
+
+  <!-- CỘT PHẢI SIDEBAR: ô chat + thân -->
+  <div class="main">
+
+  <!-- HÀNG 2: Ô chat độc lập — luôn hiện, ngắn ~1/2 màn, canh giữa -->
+  <div class="chatbar">
+    <div class="inputrow">
+      <span class="ico">💬</span>
+      <input placeholder="Bạn cần tôi hỗ trợ gì..." />
+      <button class="send">Gửi ▸</button>
+    </div>
+    <div class="pills">
+      <span class="pill">Xem bản đồ tri thức</span>
+      <span class="pill">Tìm thêm tài liệu</span>
+      <span class="pill">Bắt đầu soạn thảo</span>
+    </div>
+  </div>
+
+  <!-- HÀNG 3: Thân (giữa = trò chuyện · phải = 3 tab) -->
+  <div class="body">
+    <!-- CỘT GIỮA: Trợ lý nghiên cứu (chỉ messages, kéo mở rộng/thu hẹp) -->
+    <div class="assistant">
+      <div class="res-handle"></div>
+      <div class="a-head">
+        <span class="t">Nội dung trò chuyện</span>
+        <span class="collapse">‹</span>
+      </div>
+      <div class="msgs">
+        <div class="msg user">Các bài này mâu thuẫn nhau ở đâu?</div>
+        <div class="msg ai">
+          <h4>Mâu thuẫn chính giữa các nghiên cứu</h4>
+          <p>Có hai luồng kết luận đối lập về tác động của ngô Bt:</p>
+          <ul>
+            <li><b>Phe tác hại:</b> ngô Bt làm <b>giảm</b> đa dạng vi sinh vật đất <span class="cite">[1]</span><span class="cite">[4]</span>.</li>
+            <li><b>Phe an toàn:</b> <b>không</b> có tác động có ý nghĩa thống kê <span class="cite">[2]</span><span class="cite">[5]</span>.</li>
+          </ul>
+          <p>Hai kết luận này <b>mâu thuẫn trực tiếp</b>; bài tổng quan <span class="cite">[6]</span> ghi nhận chưa nghiên cứu nào hoà giải được.</p>
+        </div>
+      </div>
+      <div class="note">‹ Thu hẹp/ẩn cột này → chỉ ẩn phần messages, ô chat trên cùng vẫn còn</div>
+    </div>
+
+    <!-- CỘT PHẢI: Nội dung 3 tab -->
+    <div class="content">
+      <div class="tabs">
+        <div class="tab">Thư viện Tài liệu</div>
+        <span class="tab-sep">›</span>
+        <div class="tab active">Bản đồ Tri thức</div>
+        <span class="tab-sep">›</span>
+        <div class="tab">Hỗ trợ viết tổng quan</div>
+      </div>
+      <div class="content-body">
+        <div class="map-mock">⬡ Bản đồ tri thức (Cytoscape) — nội dung 3 tab nằm bên phải</div>
+      </div>
+    </div>
+  </div><!-- /.body -->
+  </div><!-- /.main -->
+  </div><!-- /.below -->
+</div><!-- /.app -->
+</body>
+</html>

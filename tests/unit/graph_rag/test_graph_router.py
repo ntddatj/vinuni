@@ -1,4 +1,4 @@
-"""Unit tests cho graph_rag router — AC#22.
+"""Unit tests cho graph_rag router — AC#22 + AC#30.
 
 Mock Neo4j + Postgres. Pattern: AsyncMock + _FakeNeo4jDriver.
 get_neo4j_driver() gọi trực tiếp trong router nên phải patch, không dùng dependency_overrides.
@@ -9,6 +9,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient, ASGITransport
 
+from backend.src.modules.graph_rag.domain.entities import GapContext, GapFlaggedNode
 from backend.src.modules.graph_rag.presentation.router import router as graph_router
 from backend.src.modules.identity.domain.entities import User
 from backend.src.modules.identity.infrastructure.auth_dependencies import get_current_user
@@ -274,3 +275,63 @@ async def test_sync_status_syncing_false_when_no_events():
 
     assert resp.status_code == 200
     assert resp.json()["syncing"] is False
+
+
+# ── tests: GET /graph/gaps ────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_get_graph_gaps_returns_empty_response():
+    """GET /graph/gaps khi không có gaps → 200 với flagged_nodes=[] flagged_edges=[]."""
+    app = _build_app(_make_user(), _make_project())
+
+    with patch("backend.src.modules.graph_rag.presentation.router.get_neo4j_driver", return_value=_FakeNeo4jDriver()):
+        with patch("backend.src.modules.graph_rag.presentation.router.GapDetectionUseCase") as MockUseCase:
+            instance = AsyncMock()
+            instance.gap_detection = AsyncMock(return_value=GapContext())
+            MockUseCase.return_value = instance
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                resp = await client.get("/api/projects/proj-1/graph/gaps")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["flagged_nodes"] == []
+    assert data["flagged_edges"] == []
+
+
+@pytest.mark.asyncio
+async def test_get_graph_gaps_returns_flagged_nodes():
+    """GET /graph/gaps với 1 flagged_node → response có 1 item trong flagged_nodes."""
+    gap_context = GapContext(
+        flagged_nodes=[GapFlaggedNode(paper_id="p1", reason="has_contradiction")],
+        flagged_edges=[],
+    )
+    app = _build_app(_make_user(), _make_project())
+
+    with patch("backend.src.modules.graph_rag.presentation.router.get_neo4j_driver", return_value=_FakeNeo4jDriver()):
+        with patch("backend.src.modules.graph_rag.presentation.router.GapDetectionUseCase") as MockUseCase:
+            instance = AsyncMock()
+            instance.gap_detection = AsyncMock(return_value=gap_context)
+            MockUseCase.return_value = instance
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                resp = await client.get("/api/projects/proj-1/graph/gaps")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["flagged_nodes"]) == 1
+    assert data["flagged_nodes"][0]["paper_id"] == "p1"
+    assert data["flagged_nodes"][0]["reason"] == "has_contradiction"
+
+
+@pytest.mark.asyncio
+async def test_get_graph_gaps_project_not_owned_returns_404():
+    """GET /graph/gaps với project không thuộc user → 404."""
+    mock_project = _make_project(user_id="other-user")
+    mock_user = _make_user(user_id="user-1")
+
+    app = _build_app(mock_user, mock_project)
+
+    with patch("backend.src.modules.graph_rag.presentation.router.get_neo4j_driver", return_value=_FakeNeo4jDriver()):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.get("/api/projects/proj-1/graph/gaps")
+
+    assert resp.status_code == 404

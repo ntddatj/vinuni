@@ -333,6 +333,8 @@ Chatbot đóng vai trò trợ lý chủ động và cần biết trạng thái U
 * **Quản lý Cấu hình Động & Giới hạn của Admin (Admin Settings & Limits):**
   * Các tham số cấu hình hệ thống được lưu trữ động trong bảng `settings` (PostgreSQL) và có thể cập nhật thông qua trang Admin Panel:
     * `MAX_PAPERS_PER_PROJECT` (integer, mặc định: `15`): Giới hạn số tài liệu tối đa của mỗi dự án.
+    * `INGEST_MAX_PDF_PAGES` (integer, mặc định: `50`): Số trang PDF tối đa parse ở Stage-1 (chunking/ontology). Nâng từ 2 để mục References (cuối bài) lọt vào → kích hoạt cạnh `[:CITES]` (Story 4.6/4.9).
+    * `INGEST_MAX_EXTRACT_CHARS` (integer, mặc định: `150000`): Số ký tự tối đa giữ lại sau parse (nâng từ 4000). Cũng là cận trên lượng text gửi LLM ở Stage-2 graph extraction — giữ ~150k–200k để chặn chi phí token.
     * `DEFAULT_LLM_MODEL` (string, mặc định: `"gemini-2.5-pro"`): Model mặc định dùng cho các tác vụ xử lý ngôn ngữ/RAG. Giao diện Admin Panel cung cấp danh sách tùy chọn các mô hình với định danh chính thức: `gemini-1.5-pro`, `gemini-1.5-flash`, `gemini-2.0-flash`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-flash-lite`, và `gemini-3.1-pro-preview` (hoặc `gemini-3.1-pro`).
     * `CHILD_CHUNK_SIZE` (integer, mặc định: `500`): Kích thước ký tự của một Child Chunk.
     * `CHILD_CHUNK_OVERLAP` (integer, mặc định: `100`): Độ trùng lặp ký tự giữa các Child Chunks kề nhau.

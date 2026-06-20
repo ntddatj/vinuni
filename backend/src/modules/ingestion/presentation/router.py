@@ -90,6 +90,7 @@ async def upload_document(
         authors=result["authors"],
         abstract=result["abstract"],
         year=result["year"],
+        doi=result.get("doi"),
     )
 
 
@@ -110,6 +111,7 @@ async def confirm_metadata(
             project_id=body.project_id,
             user_id=str(current_user.id),
             db=db,
+            doi=body.doi,
         )
     except IngestionFileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

@@ -28,3 +28,21 @@ class GraphResponse(BaseModel):
 
 class SyncStatusResponse(BaseModel):
     syncing: bool
+
+
+class GapFlaggedNodeResponse(BaseModel):
+    paper_id: str
+    reason: str  # "isolated_cluster" | "has_unfilled_limitation" | "has_contradiction"
+
+
+class GapFlaggedEdgeResponse(BaseModel):
+    finding1_id: str
+    finding2_id: str
+    paper1_id: str
+    paper2_id: str
+    reason: str  # "contradicts"
+
+
+class GapResponse(BaseModel):
+    flagged_nodes: list[GapFlaggedNodeResponse]
+    flagged_edges: list[GapFlaggedEdgeResponse]

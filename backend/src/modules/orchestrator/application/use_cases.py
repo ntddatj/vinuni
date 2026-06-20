@@ -227,6 +227,14 @@ async def _stream_graph_to_queue(
             }
         }
 
+        # Worker nodes được phép stream token ra UI (AC#9: bỏ token của supervisor)
+        _WORKER_NODES = {"research_rag", "gap_analyst"}
+        _agent_thinking_emitted = False
+
+        # AC#8: phát status "routing" ngay đầu luồng (trong lúc supervisor phân loại)
+        # để UI có phản hồi tức thì trước khi worker bắt đầu sinh token.
+        await queue.put({"type": "agent_thinking", "status": "routing"})
+
         # Stream token thật qua astream_events
         async for event in graph.astream_events(
             {"messages": [HumanMessage(content=message)]},
@@ -234,7 +242,16 @@ async def _stream_graph_to_queue(
             version="v2",
         ):
             kind = event["event"]
-            if kind == "on_chat_model_stream":
+            node_name = event.get("metadata", {}).get("langgraph_node", "")
+
+            # Emit agent_thinking khi worker bắt đầu (trước chunk đầu tiên — AC#8)
+            if kind in ("on_chain_start", "on_chat_model_start") and node_name in _WORKER_NODES and not _agent_thinking_emitted:
+                status = "retrieving_rag_context" if node_name == "research_rag" else "analyzing_gaps"
+                await queue.put({"type": "agent_thinking", "status": status})
+                _agent_thinking_emitted = True
+
+            # Chỉ stream token của worker nodes, bỏ supervisor (AC#9)
+            if kind == "on_chat_model_stream" and node_name in _WORKER_NODES:
                 chunk = event["data"]["chunk"]
                 if isinstance(chunk.content, str) and chunk.content:
                     await queue.put({"type": "chunk", "data": chunk.content})

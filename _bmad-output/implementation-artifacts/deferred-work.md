@@ -1,5 +1,14 @@
 # Deferred Work
 
+## Deferred from: code review of story-4.9 (2026-06-21)
+
+- 🟠 **Chưa có endpoint re-ingest (Stage-1)** — Story 4.9 nâng giới hạn parse chỉ áp ở Stage-1 (parse→chunk→`ParentChunkORM`). Paper đã ingest dưới giới hạn cũ (2 trang/4000 ký tự) có chunk bị cắt; `POST /admin/backfill-graph-extraction` chỉ re-chạy Stage-2 (đọc chunk cũ) → KHÔNG khôi phục References. Hiện phải xóa + upload lại thủ công. Đề xuất follow-up: thêm `POST /admin/reingest` enqueue `ingest_document_task` cho paper `indexed` (mirror pattern backfill, idempotent qua `_job_id`). [backend/src/modules/admin/presentation/router.py:100; backend/worker.py:469-512]
+
+## Deferred from: code review of story-4.5 (2026-06-18)
+
+- 🟡 **graph_search fusion gần như vô hiệu (gốc: Cypher exact-match 4.4)** — `_CYPHER_GRAPH_SEARCH` match `entities` trên `start.title IN $entities OR start.name IN $entities` (so khớp tuyệt đối). Gap Analyst truyền `paper_ids` (UUID) → KHÔNG bao giờ khớp → khối `[Quan hệ Đồ thị tri thức]` luôn rỗng + tốn 1 round-trip Neo4j. real_rag truyền token đơn của query → cũng hiếm khi bằng full-title. Đã bọc try/except (graceful, không sập sau khi fix `_logger`). Để fusion thật sự hữu ích cần: lookup title trước khi gọi graph_search (gap_analyst) và đổi Cypher sang CONTAINS/full-text index (graph_rag 4.4). [backend/src/modules/orchestrator/application/graph.py:196, 322; graph_rag/application/use_cases.py:203]
+- 🟡 **Giới hạn ~8000 token fusion là heuristic char thô** — ngưỡng lệch giữa 2 worker (real_rag cắt cứng `[:32000]`, gap_analyst chỉ thêm graph nếu `<30000`), và cắt giữa chuỗi có thể chém thẻ `[N]`/dòng graph. Refine khi có token-counter thật. [graph.py:212, 338]
+
 ## Deferred from: code review of story-4.3 (2026-06-18)
 
 - 🟡 **Handler `handle_ontology_extracted` không bọc 1 transaction atomic** — mỗi `session.run` auto-commit riêng; nếu lỗi giữa chừng, node/edge đã tạo trước vẫn commit. Rủi ro thấp: MERGE idempotent + guard `id` (đã thêm) khiến retry tự lành; giữ nhất quán với các handler hiện hữu. Cân nhắc `execute_write`/explicit tx nếu cần all-or-nothing. [backend/src/modules/graph_rag/infrastructure/neo4j_adapter.py:148]
@@ -109,3 +118,18 @@
 - **`abstract`/`p.authors` không lưu trên Paper node Neo4j** — Adapter từ Story 4.1 chỉ MERGE `title/year/doi/arxiv_id/source/url/state` cho Paper; authors tách ra Author node + cạnh AUTHORED_BY, `abstract` không lưu đâu cả. Hệ quả: AC#13 (abstract trên Node Detail Card) luôn rỗng dù FE render đúng khi có data. Story 4.2 đã workaround phần tác giả bằng cách suy ra từ cạnh AUTHORED_BY, nhưng abstract cần ghi vào Neo4j. Spec 4.2 cấm sửa `neo4j_adapter.py` → để Story 4.3 (graph extraction) bổ sung property `p.abstract` + author metadata.
 - **`has_more` bỏ qua edge overflow** — `get_graph` tính `has_more` chỉ theo tổng node (>150). Nếu project <150 node nhưng >300 edge, edge bị cap im lặng, UI không báo. Đúng theo letter của spec (has_more = node-driven). Cân nhắc thêm cờ `edges_truncated` ở story sau nếu đồ thị dày cạnh.
 - **`existing_ids` query-string dài** — `expandNode` nối toàn bộ id node hiện có vào query param GET; đồ thị rất lớn có thể chạm giới hạn độ dài URL (HTTP 414). Quy mô MVP 150 node chưa chạm; cân nhắc chuyển sang POST body khi nâng giới hạn render.
+
+## Deferred from: code review of story-4.4 (2026-06-18)
+
+- **Gap queries không có `LIMIT` + node ngoài cửa sổ 150** — `gap_detection` 3 Cypher query trả không giới hạn, trong khi canvas cap 150 node. Flagged paper nằm ngoài viewport → `cy.getElementById(id)` trả empty collection, `addClass` no-op âm thầm → gap không hiển thị, không có chỉ báo cho user. Giới hạn thiết kế MVP; cân nhắc thêm `LIMIT` + cảnh báo "còn N gap ngoài tầm nhìn" ở story sau.
+- **`graph_search` match mọi node có `project_id`** — Cypher `MATCH (start {project_id})-[r]-(neighbor {project_id})` không lọc label nên match cả Finding/Limitation; mapping `n["id"]` có thể KeyError nếu node thiếu `id`, và node không phải Paper/Author bị ép `label='paper'`. Hiện đúng spec verbatim và chưa có caller (Story 4.5 sẽ wrap thành LangGraph tool) → siết label/guard khi 4.5 tích hợp.
+- **`gapData` không refetch sau `loadGraph`/expand** — sau khi expand node, đồ thị có node/edge mới không nằm trong phân tích gap đã fetch; code chỉ re-apply classes từ `gapDataRef` cũ (AC#19). Refetch gaps mỗi lần expand nằm ngoài scope; cân nhắc nếu UX yêu cầu gap luôn cập nhật realtime.
+
+## Deferred from: code review of story-4.8 (2026-06-18)
+
+- **Chuyển dự án A→B khi gap mode ON: re-apply gap data của A lên đồ thị B** — `loadGraph` re-apply guard (KnowledgeMapTab.tsx:281) dùng `gapDataRef.current` (kết quả của A) ngay khi đồ thị B vừa load, trước khi `fetchGaps(B)` resolve → trong cửa sổ ngắn các paper_id của A trùng id node B (hiếm) bị tô màu sai. Pre-existing từ hạ tầng Story 4.4; Story 4.8 cấm sửa loadGraph re-apply guard. Tác động thực tế thấp (paper_id gần như không trùng giữa dự án). Siết khi có nhu cầu chuyển dự án giữ gap mode.
+- **Mock test chia sẻ một `nodeElement` cho mọi `getElementById(id)`** — `KnowledgeMapTab.test.tsx:312-323` trả cùng một object + `addClassMock` toàn cục cho mọi id, nên bug gán class đúng-class-nhưng-sai-node không bị phát hiện. Các test hiện tại đều 1-node nên kết luận vẫn đúng; nâng cấp mock theo-từng-id (ghi nhận cặp {id, class}) để bắt regression sai-node ở story sau.
+
+## Deferred from: code review of story-4.6 (2026-06-18)
+
+- **Fuzzy title `difflib` 0.85 dễ false-positive với title ngắn/chung** — `reference_matcher.match_reference` (reference_matcher.py:416): title chuẩn hóa ngắn ("conclusion", một năm, từ chung) có thể đạt ratio ≥ 0.85 với candidate trùng từ → tạo cạnh `CITES` sai, làm paper cô lập trông như được nối (che lấp gap thật trong gap_detection Query 2). Thuật toán + ngưỡng 0.85 do AC#4/Quyết định #3 CHỐT cho MVP (corpus ≤15 paper, title bibliography thường đầy đủ nên rủi ro thực tế thấp); thêm guard độ dài/token = lệch spec. Xem lại Phase 2 (cùng đợt cân nhắc embedding-based match) nếu quan sát thấy cạnh CITES sai.

@@ -1,5 +1,5 @@
 # generated: 2026-06-15T17:36:00+07:00
-# last_updated: 2026-06-18T08:30:00+07:00
+# last_updated: 2026-06-21T00:00:00+07:00
 # project: C2-App-053
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-15T17:36:00+07:00
-last_updated: 2026-06-18T11:30:00+07:00
+last_updated: 2026-06-21T00:00:00+07:00
 project: C2-App-053
 project_key: NOKEY
 tracking_system: file-system
@@ -68,6 +68,10 @@ development_status:
   3-4-citation-guardrail-node-chong-trich-dan-ao: done
   3-5-giao-dien-tuong-tac-the-trich-dan: done
   3-6-real-rag-retriever-pgvector-citation-map-sse: done
+  # follow-up correct-course 2026-06-18 (sprint-change-proposal-2026-06-18-chat-markdown-layout.md):
+  # UX chatbot — markdown render + tái cấu trúc layout workspace. Thứ tự: 3-7 → 3-8.
+  3-7-render-markdown-cau-tra-loi-chatbot: backlog
+  3-8-tai-cau-truc-layout-workspace-o-chat-doc-lap: backlog
   epic-3-retrospective: optional
 
   # epic-4 gộp 8→5 story (4.1–4.5) để giảm số lần vibecode (cốt lõi 🟢 → trí tuệ/FR7 🟡)
@@ -81,8 +85,17 @@ development_status:
   4-1-dong-bo-postgres-neo4j-outbox-worker-va-garbage-collection: done
   4-2-knowledge-map-ui-doc-ve-do-thi-va-node-detail-card: done
   4-3-graph-extraction-trich-xuat-ontology-hoc-thuat: done
-  4-4-gap-detection-tren-map-graphrag-engine-va-to-vien: backlog
-  4-5-gap-analyst-agent-supervisor-routing-langgraph: backlog
+  4-4-gap-detection-tren-map-graphrag-engine-va-to-vien: done
+  4-5-gap-analyst-agent-supervisor-routing-langgraph: done
+  # follow-up correct-course 2026-06-18 (sprint-change-proposal-2026-06-18-cites-fillsgap-producers.md):
+  # kích hoạt CITES/FILLS_GAP thật (đã có ARCH §5.2, thiếu producer) + tách màu 3 loại gap. Thứ tự: 4-8 → 4-6 → 4-7.
+  4-6-cites-producer-trich-references-khop-paper: done
+  4-7-fills-gap-producer-llm-judge-limitation-paper: backlog
+  4-8-tach-mau-3-loai-gap-chu-giai-legend: done
+  # follow-up correct-course 2026-06-19 (sprint-change-proposal-2026-06-19-cites-references-truncation.md):
+  # CITES rỗng dù 4.6 done — DocumentParser cắt 2 trang/4000 ký tự nên References không tới LLM.
+  # Nâng giới hạn parse + 2 setting Admin (INGEST_MAX_PDF_PAGES, INGEST_MAX_EXTRACT_CHARS) + backfill.
+  4-9-sua-cat-text-parse-kich-hoat-references-cites: done
   epic-4-retrospective: optional
 
   epic-5: backlog

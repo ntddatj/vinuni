@@ -114,7 +114,14 @@ async def handle_project_deleted(session: AsyncSession, payload: dict) -> None:
 
 
 async def handle_paper_deleted(session: AsyncSession, payload: dict) -> None:
-    """Đánh nhãn :Deleted + deleted_at cho Paper {id}."""
+    """Đánh nhãn :Deleted + deleted_at cho Paper {id} VÀ các node ontology chỉ-thuộc-paper-này.
+
+    Khi xóa paper, node ontology (Finding/Limitation/Method/Dataset/Topic/Problem) KHÔNG còn
+    Paper sống nào trỏ tới sẽ bị bỏ mồ côi → hiện thành chấm xám rời rạc trên Bản đồ Tri thức.
+    Đánh :Deleted cho chúng để: (1) graph query lọc `NOT n:Deleted` → ẩn ngay; (2) GC DETACH
+    DELETE node :Deleted xóa vật lý cùng paper sau retention. Node dùng chung với paper sống
+    khác (vd Topic) KHÔNG bị đánh dấu (điều kiện EXISTS live Paper).
+    """
     paper_id = payload["paper_id"]
     await session.run(
         """
@@ -123,12 +130,26 @@ async def handle_paper_deleted(session: AsyncSession, payload: dict) -> None:
         """,
         paper_id=paper_id,
     )
+    await session.run(
+        """
+        MATCH (:Paper {id: $paper_id})-->(o)
+        WHERE (o:Finding OR o:Limitation OR o:Method OR o:Dataset OR o:Topic OR o:Problem)
+          AND NOT o:Deleted
+          AND NOT EXISTS {
+            MATCH (live:Paper)-->(o)
+            WHERE NOT live:Deleted
+          }
+        SET o:Deleted, o.deleted_at = datetime()
+        """,
+        paper_id=paper_id,
+    )
 
 
 async def handle_cites(session: AsyncSession, payload: dict) -> None:
-    """MERGE [:CITES] edge idempotent — handler sẵn sàng nhưng chưa có producer ở MVP.
-    Bảng papers không lưu danh sách references → Story 4.1 không có producer sự kiện này.
-    Handler viết sẵn để forward-compat: khi có dữ liệu references ở Story sau, chỉ cần thêm producer.
+    """MERGE [:CITES] edge idempotent giữa 2 Paper nodes trong Neo4j.
+
+    Producer: graph_extract_task (Story 4.6) — trích references qua LLM + khớp Paper bằng
+    reference_matcher → ghi event CITES vào sync_outbox khi tìm được cặp citing/cited.
     """
     citing_id = payload.get("citing_paper_id")
     cited_id = payload.get("cited_paper_id")

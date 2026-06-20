@@ -84,6 +84,7 @@ class PostgresPaperRepository:
             source=entity.source,
             file_path=entity.file_path,
             status=entity.status,
+            doi=entity.doi,
         )
         self._db.add(orm)
         await self._db.flush()

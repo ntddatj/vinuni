@@ -107,4 +107,43 @@ describe('NodeDetailCard', () => {
     render(<NodeDetailCard node={AUTHOR_NODE} allNodes={[]} onClose={vi.fn()} />);
     expect(screen.queryByText(/hỏi ai/i)).not.toBeInTheDocument();
   });
+
+  it('renders explainGap button when gapReason is set', () => {
+    render(
+      <NodeDetailCard
+        node={PAPER_NODE}
+        allNodes={[]}
+        onClose={vi.fn()}
+        gapReason="contradiction"
+      />,
+    );
+    expect(screen.getByText(/giải thích khoảng trống này/i)).toBeInTheDocument();
+  });
+
+  it('does not render explainGap button when gapReason is null', () => {
+    render(
+      <NodeDetailCard
+        node={PAPER_NODE}
+        allNodes={[]}
+        onClose={vi.fn()}
+        gapReason={null}
+      />,
+    );
+    expect(screen.queryByText(/giải thích khoảng trống này/i)).not.toBeInTheDocument();
+  });
+
+  it('explainGap button calls setPendingChatInput with gap context including node title', () => {
+    render(
+      <NodeDetailCard
+        node={PAPER_NODE}
+        allNodes={[]}
+        onClose={vi.fn()}
+        gapReason="contradiction"
+      />,
+    );
+    fireEvent.click(screen.getByText(/giải thích khoảng trống này/i));
+    expect(mockSetPendingChatInput).toHaveBeenCalledWith(
+      expect.stringContaining(PAPER_NODE.title),
+    );
+  });
 });

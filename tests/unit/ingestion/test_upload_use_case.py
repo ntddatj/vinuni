@@ -147,6 +147,68 @@ async def test_confirm_saves_paper_with_pending_status(confirm_use_case, db):
 
 
 @pytest.mark.asyncio
+async def test_confirm_persists_doi_when_provided(confirm_use_case, db):
+    """DOI bắt được lúc upload phải được lưu vào Paper (mở khóa CITES DOI-exact)."""
+    mock_uploaded_file = UploadedFile(
+        id="file-id-123",
+        project_id="proj-id",
+        user_id="user-id",
+        original_filename="paper.pdf",
+        file_path="/data/uploads/user-id/file-id-123.pdf",
+        mime_type="application/pdf",
+        file_size=1000,
+    )
+
+    with (
+        patch("backend.src.modules.ingestion.application.use_cases.PostgresUploadedFileRepository") as MockFileRepo,
+        patch("backend.src.modules.ingestion.application.use_cases.PostgresPaperRepository") as MockPaperRepo,
+        patch("backend.src.modules.ingestion.application.use_cases.get_max_papers_limit", new_callable=AsyncMock, return_value=15),
+        patch("backend.src.modules.ingestion.application.use_cases.count_papers_by_project", new_callable=AsyncMock, return_value=0),
+        patch("backend.src.modules.ingestion.application.use_cases.get_redis", new_callable=AsyncMock) as mock_get_redis,
+        patch("backend.src.modules.ingestion.application.use_cases.enqueue_ingestion_task", new_callable=AsyncMock),
+    ):
+        mock_redis = AsyncMock()
+        mock_redis.set = AsyncMock(return_value=True)
+        mock_redis.delete = AsyncMock()
+        mock_get_redis.return_value = mock_redis
+
+        MockFileRepo.return_value.find_by_id = AsyncMock(return_value=mock_uploaded_file)
+        mock_paper_repo = MockPaperRepo.return_value
+        mock_paper_repo.save_paper = AsyncMock(side_effect=lambda entity: entity)
+
+        await confirm_use_case.execute(
+            file_id="file-id-123",
+            title="Some Paper",
+            authors=["John Doe"],
+            abstract="...",
+            year=2023,
+            project_id="proj-id",
+            user_id="user-id",
+            db=db,
+            doi="10.1234/abcd",
+        )
+
+    saved_paper = mock_paper_repo.save_paper.call_args[0][0]
+    assert saved_paper.doi == "10.1234/abcd"
+
+
+def test_parse_doi_normalizes_and_validates():
+    """_parse_doi: bỏ tiền tố URL, lowercase, loại giá trị không phải DOI."""
+    from backend.src.modules.ingestion.infrastructure.metadata_extractor import LLMMetadataExtractor
+
+    parse = LLMMetadataExtractor._parse_doi
+    assert parse("https://doi.org/10.1234/AbC") == "10.1234/abc"
+    assert parse("doi:10.5555/xyz") == "10.5555/xyz"
+    assert parse("  10.1016/Foo.Bar  ") == "10.1016/foo.bar"
+    # Không phải DOI hợp lệ → None (chống lưu rác / LLM bịa)
+    assert parse("not-a-doi") is None
+    assert parse("10.1/x") is None  # registrant < 4 chữ số → không phải DOI Crossref
+    assert parse("") is None
+    assert parse(None) is None
+    assert parse(12345) is None
+
+
+@pytest.mark.asyncio
 async def test_confirm_raises_when_file_not_found(confirm_use_case, db):
     with patch("backend.src.modules.ingestion.application.use_cases.PostgresUploadedFileRepository") as MockFileRepo:
         mock_file_repo = MockFileRepo.return_value

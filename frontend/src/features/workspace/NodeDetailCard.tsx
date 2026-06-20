@@ -9,9 +9,10 @@ interface NodeDetailCardProps {
   allEdges?: GraphEdge[];
   onClose: () => void;
   onExpand?: () => void;
+  gapReason?: 'contradiction' | 'isolated' | 'unfilled_limitation' | null;
 }
 
-export function NodeDetailCard({ node, allNodes, allEdges = [], onClose, onExpand }: NodeDetailCardProps) {
+export function NodeDetailCard({ node, allNodes, allEdges = [], onClose, onExpand, gapReason }: NodeDetailCardProps) {
   const { t } = useTranslation();
   const setPendingChatInput = useWorkspaceStore((s) => s.setPendingChatInput);
 
@@ -19,6 +20,15 @@ export function NodeDetailCard({ node, allNodes, allEdges = [], onClose, onExpan
     // Chat sống trong ChatbotPanel (panel phải, luôn mounted) — chỉ cần prefill,
     // KHÔNG đổi tab center (trước đây switch sang 'library' làm ẩn đồ thị đang xem).
     setPendingChatInput(`Hãy phân tích bài báo: ${node.title}`);
+  };
+
+  const handleExplainGap = () => {
+    const gapDesc = {
+      contradiction: `mâu thuẫn học thuật trong nghiên cứu: ${node.title}`,
+      isolated: `khoảng trống do thiếu liên kết trích dẫn: ${node.title}`,
+      unfilled_limitation: `hạn chế chưa được giải quyết trong: ${node.title}`,
+    }[gapReason ?? 'contradiction'] ?? `khoảng trống nghiên cứu liên quan đến: ${node.title}`;
+    setPendingChatInput(`Phân tích ${gapDesc}. Hãy chỉ rõ mâu thuẫn, hạn chế và cơ hội nghiên cứu.`);
   };
 
   if (node.label === 'author') {
@@ -89,6 +99,11 @@ export function NodeDetailCard({ node, allNodes, allEdges = [], onClose, onExpan
         {onExpand && (
           <button className={styles.expandBtn} onClick={onExpand} type="button">
             {t('graph.expand')}
+          </button>
+        )}
+        {gapReason && (
+          <button className={styles.explainGapBtn} onClick={handleExplainGap} type="button">
+            {t('graph.explainGap')}
           </button>
         )}
       </div>

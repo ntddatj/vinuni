@@ -124,3 +124,34 @@
   z-index: 10;
   pointer-events: none;
 }
+
+.gapModeBtn {
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--rounded-md, 6px);
+  background: var(--surface-raised);
+  color: var(--ink-secondary);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.gapModeBtn:hover:not(:disabled) {
+  background: var(--surface-base);
+  color: var(--ink-primary);
+}
+
+.gapModeBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.gapModeBtnActive {
+  background: #FEE2E2;
+  color: #991B1B;
+  border-color: #EF4444;
+}
+
+.gapModeBtnActive:hover:not(:disabled) {
+  background: #FECACA;
+}

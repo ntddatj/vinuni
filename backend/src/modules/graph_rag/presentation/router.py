@@ -3,8 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.src.modules.graph_rag.application.use_cases import GraphReadUseCase
+from backend.src.modules.graph_rag.application.use_cases import GapDetectionUseCase, GraphReadUseCase
 from backend.src.modules.graph_rag.presentation.schemas import (
+    GapFlaggedEdgeResponse,
+    GapFlaggedNodeResponse,
+    GapResponse,
     GraphResponse,
     NodeResponse,
     EdgeResponse,
@@ -67,6 +70,34 @@ async def expand_node(
         nodes=[NodeResponse(**node.__dict__) for node in graph_data.nodes],
         edges=[EdgeResponse(**edge.__dict__) for edge in graph_data.edges],
         has_more=graph_data.has_more,
+    )
+
+
+@router.get("/{project_id}/graph/gaps", response_model=GapResponse)
+async def get_graph_gaps(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    repo: ProjectRepository = Depends(get_project_repository),
+) -> GapResponse:
+    await _get_project_or_404(project_id, current_user, repo)
+    driver = await get_neo4j_driver()
+    use_case = GapDetectionUseCase(driver)
+    gap_context = await use_case.gap_detection(project_id)
+    return GapResponse(
+        flagged_nodes=[
+            GapFlaggedNodeResponse(paper_id=n.paper_id, reason=n.reason)
+            for n in gap_context.flagged_nodes
+        ],
+        flagged_edges=[
+            GapFlaggedEdgeResponse(
+                finding1_id=e.finding1_id,
+                finding2_id=e.finding2_id,
+                paper1_id=e.paper1_id,
+                paper2_id=e.paper2_id,
+                reason=e.reason,
+            )
+            for e in gap_context.flagged_edges
+        ],
     )
 
 

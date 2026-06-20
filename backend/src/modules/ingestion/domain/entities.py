@@ -18,6 +18,7 @@ class ExtractedMetadata:
     authors: list[str]
     abstract: str
     year: int | None
+    doi: str | None = None
 
 
 @dataclass
@@ -32,3 +33,4 @@ class Paper:
     source: str
     file_path: str | None
     status: str
+    doi: str | None = None

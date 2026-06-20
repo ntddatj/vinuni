@@ -211,11 +211,18 @@ async def test_gc_neo4j_uses_detach_delete_with_threshold():
     threshold = datetime.now(timezone.utc) - timedelta(days=7)
     await _gc_neo4j(neo4j_driver, threshold)
 
-    assert len(queries_run) == 1
-    query, params = queries_run[0]
-    assert "DETACH DELETE" in query.upper()
-    assert ":Deleted" in query
+    # 2 query: (1) DETACH DELETE node :Deleted quá hạn, (2) dọn node ontology mồ côi
+    assert len(queries_run) == 2
+    deleted_query, params = queries_run[0]
+    assert "DETACH DELETE" in deleted_query.upper()
+    assert ":Deleted" in deleted_query
     assert "threshold" in params
+
+    orphan_query, _ = queries_run[1]
+    assert "DETACH DELETE" in orphan_query.upper()
+    # Sweep nhắm node ontology không còn Paper sống nào trỏ tới
+    assert "Finding" in orphan_query and "Topic" in orphan_query
+    assert "NOT EXISTS" in orphan_query and "Paper" in orphan_query
 
 
 @pytest.mark.asyncio

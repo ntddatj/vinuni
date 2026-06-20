@@ -154,5 +154,21 @@ async def _gc_neo4j(neo4j_driver, threshold: datetime) -> None:
             record = await result.single()
             deleted_count = record["deleted"] if record else 0
             logger.info("GC Neo4j: DETACH DELETE %d node :Deleted", deleted_count)
+
+            # Dọn node ontology MỒ CÔI: không :Deleted nhưng không còn Paper sống nào trỏ tới
+            # (vd di sản từ lần xóa paper cũ — trước khi handle_paper_deleted dọn ontology, hoặc
+            # khi xóa cả project). Chúng hiện thành chấm xám rời rạc trên đồ thị. Không có deleted_at
+            # nên KHÔNG qua retention :Deleted — xóa thẳng vì đã mất mọi liên kết tới paper sống.
+            orphan_result = await session.run(
+                "MATCH (o) "
+                "WHERE (o:Finding OR o:Limitation OR o:Method OR o:Dataset OR o:Topic OR o:Problem) "
+                "  AND NOT o:Deleted "
+                "  AND NOT EXISTS { MATCH (p:Paper)-->(o) WHERE NOT p:Deleted } "
+                "DETACH DELETE o "
+                "RETURN count(*) AS deleted"
+            )
+            orphan_record = await orphan_result.single()
+            orphan_count = orphan_record["deleted"] if orphan_record else 0
+            logger.info("GC Neo4j: DETACH DELETE %d node ontology mồ côi", orphan_count)
     except Exception as e:
         logger.exception("GC Neo4j thất bại (Postgres đã commit — lần GC sau sẽ dọn nốt): %s", e)

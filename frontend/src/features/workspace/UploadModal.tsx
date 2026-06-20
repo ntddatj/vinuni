@@ -67,6 +67,7 @@ export function UploadModal({ projectId, onClose, onSuccess }: UploadModalProps)
         abstract: abstract.trim(),
         year: year ? parseInt(year, 10) : null,
         projectId,
+        doi: uploadResponse.doi,
       });
       toast.success(t('upload.successToast'));
       onSuccess(result.documentId);

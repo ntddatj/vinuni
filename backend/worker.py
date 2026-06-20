@@ -35,7 +35,9 @@ from backend.src.modules.ingestion.infrastructure.task_progress import (
     publish_progress,
 )
 from backend.src.modules.ingestion.infrastructure.graph_extractor import GraphExtractor
+from backend.src.modules.ingestion.infrastructure.reference_matcher import match_reference
 from backend.src.modules.ingestion.infrastructure.text_chunker import chunk_text
+from backend.src.modules.admin.infrastructure.settings_orm import get_setting
 from backend.src.modules.graph_rag.infrastructure.garbage_collection import garbage_collection_task  # noqa: F401
 from backend.src.modules.graph_rag.infrastructure.outbox_worker import sync_outbox_task  # noqa: F401
 from backend.src.modules.workspace.infrastructure.orm_models import (  # noqa: F401
@@ -75,6 +77,25 @@ def _sanitize_text(text: str) -> str:
     if not text:
         return text
     return text.translate(_CONTROL_CHAR_MAP)
+
+
+async def _get_int_setting(session_factory, key: str, default: int) -> int:
+    """Đọc setting số nguyên từ system_settings (Admin cấu hình), fallback về default."""
+    if session_factory is None:
+        return default
+    try:
+        async with session_factory() as db:
+            raw = await get_setting(db, key, None)
+    except Exception as e:
+        logger.warning("Không đọc được setting %s từ DB (%s) — dùng default %d", key, e, default)
+        return default
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        logger.warning("Setting %s='%s' không phải int — dùng default %d", key, raw, default)
+        return default
 
 
 def _is_public_http_url(url: str) -> bool:
@@ -165,26 +186,35 @@ async def shutdown(ctx) -> None:
 
 async def _extract_text(paper: PaperORM, session_factory=None) -> str:
     """Lấy text từ file local, hoặc download PDF từ pdf_url, fallback abstract."""
+    max_pages = await _get_int_setting(session_factory, "INGEST_MAX_PDF_PAGES", 50)
+    max_chars = await _get_int_setting(session_factory, "INGEST_MAX_EXTRACT_CHARS", 150000)
+
     text = ""
     if paper.file_path and Path(paper.file_path).exists():
         ext = Path(paper.file_path).suffix.lower()
         mime_type = _EXT_TO_MIME.get(ext, "application/pdf")
         try:
-            text = DocumentParser().extract_text(paper.file_path, mime_type)
+            text = DocumentParser().extract_text(
+                paper.file_path, mime_type, max_pages=max_pages, max_chars=max_chars
+            )
         except Exception as e:
             # File local hỏng/cụt (vd crash giữa lúc persist) — không fail cả paper,
             # để fallback abstract bên dưới xử lý.
             logger.warning("Không thể parse file local %s: %s", paper.file_path, e)
             text = ""
     elif paper.pdf_url:
-        text = await _download_and_persist_pdf(paper.pdf_url, paper, session_factory)
+        text = await _download_and_persist_pdf(
+            paper.pdf_url, paper, session_factory, max_pages=max_pages, max_chars=max_chars
+        )
 
     if not text.strip() and paper.abstract:
         text = paper.abstract
     return _sanitize_text(text)
 
 
-async def _download_and_persist_pdf(pdf_url: str, paper: PaperORM, session_factory) -> str:
+async def _download_and_persist_pdf(
+    pdf_url: str, paper: PaperORM, session_factory, max_pages: int = 50, max_chars: int = 150000
+) -> str:
     """Download PDF từ URL. Nếu Open Access & ≤ 20MB: persist vào disk, set paper.file_path.
     Luôn trả về text (để chunking). File > 20MB: không persist nhưng vẫn trả text."""
     import tempfile
@@ -249,10 +279,10 @@ async def _download_and_persist_pdf(pdf_url: str, paper: PaperORM, session_facto
                 tmp_path = tmp.name
             doc = fitz.open(tmp_path)
             try:
-                text = "".join(doc[i].get_text() for i in range(min(len(doc), 20)))
+                text = "".join(doc[i].get_text() for i in range(min(len(doc), max_pages)))
             finally:
                 doc.close()
-            return text
+            return text[:max_chars]
         finally:
             if tmp_path:
                 Path(tmp_path).unlink(missing_ok=True)
@@ -533,6 +563,53 @@ async def graph_extract_task(ctx, paper_id: str) -> None:
             },
         )
         db.add(outbox_event)
+
+        # --- CITES producer (Story 4.6) ---
+        # LLM output untrusted: chấp nhận entry không phải dict hoặc title null/rỗng → bỏ qua
+        # (None.strip() / str.get() sẽ AttributeError và cuốn theo cả commit ONTOLOGY_EXTRACTED).
+        references = [
+            r
+            for r in (data.get("references") or [])
+            if isinstance(r, dict) and (r.get("title") or "").strip()
+        ]
+        if not references:
+            logger.info("graph_extract_task: paper %s — 0 references, bỏ qua CITES", paper_id)
+        else:
+            cand_result = await db.execute(
+                select(PaperORM.id, PaperORM.title, PaperORM.doi).where(
+                    PaperORM.project_id == paper.project_id,
+                    PaperORM.id != paper_id,
+                    PaperORM.is_deleted == False,  # noqa: E712
+                )
+            )
+            candidates = [
+                {"id": str(r.id), "title": r.title, "doi": r.doi}
+                for r in cand_result.all()
+            ]
+            matched: set[str] = set()
+            unmatched = 0
+            for ref in references:
+                cited_id = match_reference(ref, candidates)
+                if cited_id is None or cited_id == paper_id:
+                    unmatched += 1
+                    continue
+                matched.add(cited_id)
+            for cited_id in matched:
+                db.add(
+                    SyncOutboxORM(
+                        event_type="CITES",
+                        project_id=paper.project_id,
+                        payload={"citing_paper_id": paper_id, "cited_paper_id": cited_id},
+                    )
+                )
+            logger.info(
+                "graph_extract_task: paper %s — %d references, %d matched CITES, %d unmatched",
+                paper_id,
+                len(references),
+                len(matched),
+                unmatched,
+            )
+
         await db.commit()
         logger.info("graph_extract_task: đã ghi ONTOLOGY_EXTRACTED cho paper %s", paper_id)
 

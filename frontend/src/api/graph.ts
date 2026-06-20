@@ -1,4 +1,4 @@
-import type { GraphResponse, SyncStatus } from '@/types/graph';
+import type { GraphResponse, GapResponse, SyncStatus } from '@/types/graph';
 import apiClient from './client';
 
 export async function fetchGraph(projectId: string): Promise<GraphResponse> {
@@ -20,5 +20,10 @@ export async function expandNode(
 
 export async function getSyncStatus(projectId: string): Promise<SyncStatus> {
   const res = await apiClient.get<SyncStatus>(`/api/projects/${projectId}/graph/sync-status`);
+  return res.data;
+}
+
+export async function fetchGaps(projectId: string): Promise<GapResponse> {
+  const res = await apiClient.get<GapResponse>(`/api/projects/${projectId}/graph/gaps`);
   return res.data;
 }

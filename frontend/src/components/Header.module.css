@@ -39,8 +39,8 @@
 }
 
 .adminButton {
-  color: var(--accent-blue);
-  border-color: var(--accent-blue);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .toggle {

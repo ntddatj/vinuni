@@ -4,6 +4,7 @@ export interface UploadResponse {
   authors: string[];
   abstract: string;
   year: number | null;
+  doi: string | null;
 }
 
 export interface ConfirmRequest {
@@ -13,6 +14,7 @@ export interface ConfirmRequest {
   abstract: string;
   year: number | null;
   projectId: string;
+  doi: string | null;
 }
 
 export interface ConfirmResponse {

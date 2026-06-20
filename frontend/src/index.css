@@ -1,15 +1,25 @@
 /* AcademicPaper Design System */
 :root {
-  --surface-base: #FAF9F6;
+  --surface-base: #EEF1F5;
   --surface-raised: #FFFFFF;
-  --ink-primary: #1E2022;
+  --ink-primary: #1D2939;
   --ink-secondary: #64748B;
-  --accent-blue: #2563EB;
+  /* --accent-blue: alias của --accent (indigo). Mọi component cũ tham chiếu */
+  /* var(--accent-blue) tự chuyển sang tông indigo toàn app. */
+  --accent-blue: var(--accent);
   --accent-violet: #8B5CF6;
   --state-danger: #EF4444;
   --state-success: #10B981;
   --state-warning: #F59E0B;
-  --border-hairline: #E2E8F0;
+  --border-hairline: #E4E7EC;
+
+  /* Indigo accent (mockup layout-chat-top) — token theo vai trò ngữ nghĩa */
+  --accent: #6366F1;                /* indigo-500: NỀN nút Gửi, focus input, badge */
+  --accent-hover: #4F46E5;          /* indigo-600: hover nút */
+  --accent-strong: #4338CA;         /* indigo-700: tab active, link, chữ citation */
+  --accent-soft-bg: #EEF2FF;        /* indigo-50: nền citation + bubble user */
+  --accent-soft-border: #C7D2FE;    /* indigo-200: viền citation, hover resize handle */
+  --accent-soft-text: #3730A3;      /* indigo-800: chữ trong bubble user */
 }
 
 .dark {
@@ -17,12 +27,21 @@
   --surface-raised: #282A2D;
   --ink-primary: #E4E6EB;
   --ink-secondary: #94A3B8;
-  --accent-blue: #60A5FA;
+  --accent-blue: var(--accent); /* alias indigo cho dark mode */
   --accent-violet: #A78BFA;
   --state-danger: #F87171;
   --state-success: #34D399;
   --state-warning: #FBBF24;
   --border-hairline: #383A40;
+
+  /* Dark mode: giữ hue indigo, đảo độ sáng. Nút Gửi giữ nền đậm (chữ trắng đọc rõ); */
+  /* tab/link/citation sáng lên để nổi trên nền tối; nền mềm dùng overlay trong suốt. */
+  --accent: #6366F1;                /* giữ đậm: nút Gửi chữ trắng vẫn đọc rõ */
+  --accent-hover: #818CF8;          /* indigo-400: hover sáng trên nền tối */
+  --accent-strong: #A5B4FC;         /* indigo-300: tab/link/citation nổi trên nền tối */
+  --accent-soft-bg: rgba(99, 102, 241, 0.16);   /* indigo trong suốt, không near-white */
+  --accent-soft-border: rgba(129, 140, 248, 0.4);
+  --accent-soft-text: #C7D2FE;      /* chữ bubble sáng */
 }
 
 *,

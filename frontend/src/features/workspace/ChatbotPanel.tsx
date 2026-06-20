@@ -20,6 +20,7 @@ export function ChatbotPanel() {
   const [showHistory, setShowHistory] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [thinkingStatus, setThinkingStatus] = useState<string | null>(null);
   const isDragging = useRef(false);
   const cleanupDragRef = useRef<(() => void) | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -62,6 +63,7 @@ export function ChatbotPanel() {
   useEffect(() => {
     closeStream();
     citationMapRef.current = {};
+    setThinkingStatus(null);
     reset();
   }, [activeProjectId]);
 
@@ -233,6 +235,7 @@ export function ChatbotPanel() {
         chunk?: string;
         content?: string;
         data?: Record<string, string>;
+        status?: string;
       };
       try {
         data = JSON.parse(e.data);
@@ -240,12 +243,16 @@ export function ChatbotPanel() {
         return; // bỏ qua frame không hợp lệ (vd: keep-alive comment)
       }
       if (data.event === 'done') {
+        setThinkingStatus(null);
         commitStreamingMessage(data.content, citationMapRef.current);
         citationMapRef.current = {};
         closeStream();
       } else if (data.event === 'citation_map') {
         citationMapRef.current = data.data ?? {};
+      } else if (data.event === 'agent_thinking') {
+        setThinkingStatus(data.status ?? null);
       } else if (typeof data.chunk === 'string') {
+        setThinkingStatus(null); // clear khi bắt đầu stream text
         appendChunk(data.chunk);
       }
     };
@@ -376,7 +383,11 @@ export function ChatbotPanel() {
             {isStreaming && (
               <div className={`${styles.bubble} ${styles.aiBubble}`}>
                 {streamingContent === '' ? (
-                  <span className={styles.thinking}>{t('chat.thinking')}</span>
+                  <span className={styles.thinking}>
+                    {thinkingStatus
+                      ? (t(`chat.thinking.${thinkingStatus}` as any) || t('chat.thinking'))
+                      : t('chat.thinking')}
+                  </span>
                 ) : (
                   <>
                     {streamingContent}

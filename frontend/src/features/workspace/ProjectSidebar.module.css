@@ -15,8 +15,8 @@
   margin: 0 12px 12px;
   padding: 8px 12px;
   background: transparent;
-  color: var(--accent-blue);
-  border: 1px solid var(--accent-blue);
+  color: var(--accent);
+  border: 1px solid var(--accent);
   border-radius: 6px;
   cursor: pointer;
   font-size: 0.875rem;
@@ -26,7 +26,7 @@
 }
 
 .createButton:hover {
-  background: var(--accent-blue);
+  background: var(--accent);
   color: #fff;
 }
 
@@ -100,7 +100,7 @@
 .renameInput {
   flex: 1;
   font-size: 0.875rem;
-  border: 1px solid var(--accent-blue);
+  border: 1px solid var(--accent);
   border-radius: 4px;
   padding: 2px 6px;
   outline: none;
@@ -121,5 +121,5 @@
 }
 
 .viewAllLink:hover {
-  color: var(--accent-blue);
+  color: var(--accent);
 }

@@ -152,7 +152,7 @@ Người dùng có thể viết literature review có hỗ trợ gợi ý của 
 
 > **📌 Trạng thái thực thi (đồng bộ từ sprint-status.yaml — 2026-06-17):**
 > Epic 1 ✅ done · Epic 2 ⏳ in-progress (2.1–2.6 done, 2.7 backlog) · Epic 3 ⏳ in-progress (3.1–3.5 done, 3.6 ready-for-dev) · Epic 4 ⏳ backlog · Epic 5 ⏳ backlog
-> Tổng: **28 story** (đã gộp từ 38 story chia nhỏ của bản kế hoạch gốc; +2 story 2.7/3.6 phát sinh trong thực thi; Epic 4 bổ sung Gap Detection backend rồi **gộp còn 5 story 4.1–4.5** (GC gộp vào 4.1) để giảm số lần vibecode — correct-course + Architect 2026-06-17). AC chính thức của story đã hoàn thành nằm ở file story tương ứng trong `implementation-artifacts/`.
+> Tổng: **33 story** (đã gộp từ 38 story chia nhỏ của bản kế hoạch gốc; +2 story 2.7/3.6 phát sinh trong thực thi; Epic 4 bổ sung Gap Detection backend rồi **gộp còn 5 story 4.1–4.5** (GC gộp vào 4.1) để giảm số lần vibecode — correct-course + Architect 2026-06-17; **+3 story follow-up 4.6/4.7/4.8** — CITES/FILLS_GAP producers + tách màu gap, correct-course 2026-06-18, Epic 4 mở lại in-progress; **+2 story FE 3.7/3.8** — render markdown chat + tái cấu trúc layout workspace, correct-course 2026-06-18). AC chính thức của story đã hoàn thành nằm ở file story tương ứng trong `implementation-artifacts/`.
 
 ---
 
@@ -331,6 +331,42 @@ Thay `mock_rag_node` bằng retriever thật: embed câu hỏi (Gemini `text-emb
 - **AC chi tiết:** sẽ tạo qua `bmad-create-story` tại `implementation-artifacts/3-6-real-rag-retriever-pgvector-citation-map-sse.md`. Tham chiếu `sprint-change-proposal-2026-06-17.md`.
 - **FRs:** FR6, FR10, NFR3.
 
+### Story 3.7: [Frontend] Render Markdown trong câu trả lời Chatbot (giữ CitationBadge) — ⏳ backlog 🟢
+
+Bọc nội dung câu trả lời chatbot bằng `react-markdown` + `remark-gfm` + `rehype-sanitize` để render đẹp (heading, bullet/numbered list, bold/italic, bảng, xuống dòng), ĐỒNG THỜI giữ nguyên thẻ trích dẫn `[N]` tương tác (`CitationBadge` + tooltip Story 3.5) bằng cách override renderer text/p để chạy logic split `[N]`.
+
+- **Phát sinh:** correct-course 2026-06-18 (câu trả lời hiện markdown thô, viết liền khó đọc).
+- **🧭 Nhãn module/role:** `[frontend]` thuần — `components/MessageContent.tsx` (+ `CitationBadge` tái dùng).
+- **Phụ thuộc:** Story 3.5 (CitationBadge), Story 3.6 (content + citationMap). KHÔNG phụ thuộc 3.8.
+- **FRs:** FR6.
+
+**AC nháp (chi tiết hóa khi create-story):**
+1. Thêm `react-markdown` + `remark-gfm` + `rehype-sanitize` vào frontend; sanitize BẮT BUỘC (nội dung LLM sinh).
+2. `MessageContent` render markdown của `msg.content`; heading/list/bold/italic/bảng/xuống dòng hiển thị đúng.
+3. Thẻ `[N]` trong markdown vẫn render thành `CitationBadge` tương tác (override renderer text/p; tái dùng `CitationBadge` + citationMap ordinal→UUID), kể cả khi `[N]` nằm trong `<p>`/`<li>`/`<td>`.
+4. Streaming: markdown render trên chuỗi đang chạy; markdown chưa đóng hiện tạm thô rồi tự đẹp khi token tới — không crash.
+5. Không phá link tooltip Story 3.5; không mở lỗ XSS (test thử input markdown độc hại).
+6. Tin nhắn user (không có citationMap) vẫn render an toàn.
+
+### Story 3.8: [Frontend] Tái cấu trúc Layout Workspace — Ô chat độc lập trên cùng + đảo cột — ⏳ backlog 🟡
+
+Tái cấu trúc shell layout (`DashboardPage`): hàng trên cùng = brand **"Trợ lý nghiên cứu"** (thay "C2 Research") + nút hệ thống thành MỘT dải liền, tách phần dưới bằng kẻ ngang suốt. Phần dưới: sidebar dự án (trái) | main = **Ô CHAT ĐỘC LẬP trên cùng** (~½ màn, canh giữa, luôn hiện) + thân (cột **"Nội dung trò chuyện" GIỮA**, kéo mở rộng/thu hẹp/ẩn — chỉ ẩn messages, KHÔNG ẩn ô chat; cột nội dung **3 tab PHẢI** có dấu `›` ngăn cách, **GIÃN RỘNG khi cột trò chuyện thu hẹp**). Ô chat tách khỏi `ChatbotPanel` thành component dùng chung toàn project.
+
+- **Phát sinh:** correct-course 2026-06-18. Tham chiếu mockup: `test-data/mockups/layout-chat-top.html`.
+- **🧭 Nhãn module/role:** `[frontend]` thuần — `DashboardPage`(+css), `ChatbotPanel` (tách input/messages), `CenterWorkspace` (3 tab + sep), header/brand.
+- **Phụ thuộc:** Story 3.6 (chat hoạt động). Nên làm SAU 3.7 để câu trả lời đã đẹp.
+- **FRs:** FR6, FR9 (Knowledge Map nằm trong cột nội dung).
+
+**AC nháp:**
+1. Hàng trên cùng: brand "🔬 Trợ lý nghiên cứu" + badge project (góc trái) + nút Cài đặt/API Keys/đổi theme/VI|EN/Đăng xuất (phải) — MỘT dải liền KHÔNG vạch dọc, tách phần dưới bằng 1 đường kẻ ngang chạy suốt.
+2. Ô chat độc lập (input + nút Gửi + suggestion pills) ngay dưới hàng trên cùng, rộng ~50% màn (min hợp lý), canh giữa; LUÔN hiển thị bất kể trạng thái cột trò chuyện.
+3. Sidebar dự án bên trái (Tạo dự án + danh sách) — viền phải chỉ chạy ở phần dưới hàng trên cùng.
+4. Cột "Nội dung trò chuyện" Ở GIỮA: chỉ chứa messages, có resize handle + nút collapse/ẩn (giữ hành vi cũ); thu hẹp/ẩn → chỉ ẩn messages.
+5. Cột nội dung 3 tab Ở BÊN PHẢI: tab có dấu `›` ngăn cách; khi cột trò chuyện thu hẹp/ẩn → cột 3 tab GIÃN RỘNG chiếm chỗ trống.
+6. Gửi tin từ ô chat độc lập → vẫn route đúng vào luồng chat hiện có (thread/SSE Story 3.1/3.2/3.6); state input dùng chung, không phụ thuộc cột trò chuyện hiển thị hay không.
+7. Knowledge Map (Cytoscape) re-fit đúng khi cột nội dung đổi kích thước (collapse cột trò chuyện); không vỡ layout 3 tab.
+8. Regression: 3 tab + Node Detail + gap mode (Story 4.2/4.4) chạy đúng trong khung mới; responsive không vỡ.
+
 ---
 
 ## Epic 4: Bản đồ Tri thức & Phân tích Đồ thị (Knowledge Graph Synchronization & Exploration)
@@ -347,8 +383,12 @@ Epic này trực quan hóa và đồng bộ hóa mạng lưới trích dẫn gi�
 > | 4.3 Graph Extraction (ontology) | 🟡 Trí tuệ (FR7) | 2.5, 4.1 |
 > | 4.4 Gap Detection trên Map (engine + tô viền + bridge→chat) | 🟡 Trí tuệ (FR7) | 4.1, 4.3 |
 > | 4.5 Gap Analyst Agent + Supervisor | 🟡 Trí tuệ (FR7) | 3.6, 4.4 |
+> | 4.6 CITES Producer (mở khóa cụm cô lập) | 🟡 Trí tuệ (FR7) | 4.1, 4.3 |
+> | 4.7 FILLS_GAP Producer (LLM-judge, mở khóa unfilled limitation) | 🟡 Trí tuệ (FR7) | 4.1, 4.3 |
+> | 4.8 Tách màu 3 loại Gap + Legend | 🟢 FE nhỏ | 4.4 |
 >
-> 🏁 **Milestone sau 4.2:** Knowledge Map tương tác chạy & demo được (FR9 core). · 🏁 **Sau 4.4:** Phát hiện khoảng trống trực quan trên đồ thị (FR7 via map). · 🏁 **Sau 4.5:** FR7 qua chat.
+> 🏁 **Milestone sau 4.2:** Knowledge Map tương tác chạy & demo được (FR9 core). · 🏁 **Sau 4.4:** Phát hiện khoảng trống trực quan trên đồ thị (FR7 via map). · 🏁 **Sau 4.5:** FR7 qua chat. · 🏁 **Sau 4.6+4.7+4.8:** Gap detection phản ánh khoảng trống THẬT (CITES/FILLS_GAP đã sinh) + 3 màu phân biệt rõ.
+> **Thứ tự follow-up (correct-course 2026-06-18):** 4.8 (FE, song song được) · 4.6 → 4.7 (ingestion). Tham chiếu: `sprint-change-proposal-2026-06-18-cites-fillsgap-producers.md`.
 > Tham chiếu: `sprint-change-proposal-2026-06-17-gap-detection.md`. (Gộp 8→5 story, 2026-06-17: [Cytoscape + Node Detail]→4.2; [Engine + tô viền]→4.4; Extraction→4.3; Agent→4.5; **GC gộp vào 4.1**. **Leiden + community summaries → Phase 2**, gap detection MVP dùng Cypher traversal. Sync-indicator + Graph↔Chat bridge nhúng vào AC 4.2/4.4/4.5.)
 
 ### Story 4.1: [Backend] Đồng bộ Postgres → Neo4j Event-Driven qua Outbox Worker (+ Garbage Collection) — ⏳ backlog 🟢
@@ -410,6 +450,79 @@ Tiến hóa orchestrator (sau Story 3.6) từ single RAG node sang topology Rout
 - **Phụ thuộc:** Story 3.6 (real RAG node + SSE protocol), Story 4.4 (gap_detection/graph_search tools).
 - **FRs:** FR6, FR7. (ARCH §7.)
 
+### Story 4.6: [Backend] CITES Producer — Trích references & Khớp Paper (mở khóa "cụm cô lập") — ⏳ backlog 🟡
+
+Bổ sung Stage-2 ingestion (mở rộng Story 4.3): trích danh sách references/trích dẫn từ Markdown đã cấu trúc hóa + metadata, khớp mỗi reference với Paper hiện có trong project (DOI exact → fallback fuzzy title / embedding), rồi ghi sự kiện `CITES {citing_paper_id, cited_paper_id}` vào `sync_outbox` để Story 4.1 MERGE cạnh `[:CITES]` vào Neo4j. Mở khóa Query 2 của `gap_detection` (cụm cô lập) phản ánh thật.
+
+- **Phát sinh:** correct-course 2026-06-18 (kiểm thử Story 4.4 lộ "mọi node vàng"). Hiện thực hóa ARCH §5.2 (`[:CITES]`) + §3.5 (mạng lưới trích dẫn).
+- **🧭 Nhãn module/role:** `[ingestion]` producer CITES (mở rộng worker Stage-2 §6.2) · `[graph_rag]` handler `handle_cites` **ĐÃ CÓ** (Story 4.1) — chỉ cần producer.
+- **Phụ thuộc:** Story 4.1 (handler + sync), Story 4.3 (Stage-2 worker để gắn vào).
+- **FRs:** FR7, FR9. (ARCH §5.2.)
+- **⚠️ Follow-up:** giá trị (cạnh CITES thật) chỉ hiện thực hóa sau **Story 4.9** — 4.6 đúng logic nhưng References bị cắt ở tầng parse (`DocumentParser` 2 trang/4000 ký tự) nên LLM trả `references=[]`. Xem `sprint-change-proposal-2026-06-19-cites-references-truncation.md`.
+
+**AC nháp (chi tiết hóa khi create-story):**
+1. Stage-2 trích references (title + DOI + năm nếu có) từ Markdown/metadata; rỗng → bỏ qua an toàn, không lỗi.
+2. Khớp reference → Paper trong CÙNG project: ưu tiên DOI exact; fallback so khớp tiêu đề chuẩn hóa (lowercase/bỏ dấu) + ngưỡng tương đồng (vd cosine title ≥ 0.85). Không khớp → bỏ (không tạo Paper ma).
+3. Ghi `sync_outbox` event CITES `{citing_paper_id, cited_paper_id}` — idempotent, scope `project_id`; KHÔNG tự-trích-dẫn (citing ≠ cited).
+4. Handler `handle_cites` (Story 4.1) MERGE `[:CITES]`; chạy lại không nhân đôi cạnh.
+5. Re-ingest / thêm paper mới → cập nhật cạnh CITES tăng dần (forward-compat); nêu rõ giới hạn nếu không backfill toàn bộ.
+6. Tôn trọng worker arq (concurrency_limit=2); log số reference khớp/không-khớp để quan sát chất lượng matching.
+
+### Story 4.7: [Backend] FILLS_GAP Producer — LLM-judge Limitation↔Paper (mở khóa "limitation chưa giải quyết") — ⏳ backlog 🟡
+
+Worker bất đồng bộ xác định cạnh `[:FILLS_GAP]`: với mỗi Limitation chưa được lấp trong project, **tiền lọc** ứng viên Paper bằng embedding (cosine ≥ ngưỡng), rồi gọi **LLM judge** (`gemini-1.5-flash`) *"Bài X có giải quyết hạn chế này của bài Y không?"* → nếu CÓ, ghi `sync_outbox` `FILLS_GAP {filler_paper_id, limitation_id}` để Story 4.1 MERGE `(:Paper)-[:FILLS_GAP]->(:Limitation)`. Mở khóa Query 3 của `gap_detection` phản ánh thật. **CHẠY NGẦM (arq/cron) — KHÔNG đồng bộ với nút "Tìm khoảng trống"** (giữ `gap_detection` = Cypher read nhanh).
+
+- **Phát sinh:** correct-course 2026-06-18. Hiện thực hóa ARCH §5.2 (`(:Paper)-[:FILLS_GAP]->(:Limitation)`).
+- **Quyết định kiến trúc (Dat 2026-06-18):** Chọn **LLM-judge** (chính xác) thay vì embedding-only; embedding chỉ làm **TIỀN LỌC** để cắt N×M lời gọi.
+- **🧭 Nhãn module/role:** `[ingestion]` producer FILLS_GAP (worker ngầm) · `[graph_rag]` handler FILLS_GAP **MỚI** vào dispatch map của 4.1.
+- **Phụ thuộc:** Story 4.1 (sync + thêm handler), Story 4.3 (Limitation/Finding ontology đã tồn tại).
+- **FRs:** FR7, FR9. (ARCH §5.2.)
+
+**AC nháp:**
+1. Worker quét các Limitation trong project chưa có cạnh `[:FILLS_GAP]` (idempotent, không judge lại cặp đã quyết).
+2. TIỀN LỌC: với mỗi Limitation, chọn top-K Paper ứng viên có cosine(embedding) ≥ ngưỡng (vd 0.65) — KHÔNG judge toàn bộ N×M.
+3. LLM judge (`gemini-1.5-flash`) trên từng cặp (Limitation, Paper ứng viên): trả `{fills: bool, lý do ngắn}`; prompt yêu cầu "chỉ trả CÓ nếu paper thực sự giải quyết/lấp hạn chế này".
+4. fills=true → ghi `sync_outbox` FILLS_GAP `{filler_paper_id, limitation_id}`; filler ≠ paper sở hữu limitation đó.
+5. Handler FILLS_GAP mới (graph_rag): MATCH Paper + Limitation theo id (scope `project_id`) → MERGE `[:FILLS_GAP]`; idempotent.
+6. CHẠY NGẦM (arq concurrency_limit=2 / cron sau ingest). KHÔNG nằm trên đường bấm nút gap. Cache theo `(limitation_id, candidate_paper_id)` tránh gọi lại; LLM qua LLMRouter (user→system fallback), retry/Tenacity khi rate-limit.
+7. Ngưỡng thận trọng + log mọi quyết định (judge yes/no + lý do) để chỉnh; empty/ít dữ liệu → an toàn, không bịa cạnh.
+
+### Story 4.8: [Frontend] Tách màu 3 loại Gap + Chú giải Gap có điều kiện — ⏳ backlog 🟢
+
+Trên Knowledge Map (Story 4.2/4.4), tách màu node theo `reason` để phân biệt rõ 3 loại khoảng trống: **đỏ** = mâu thuẫn (`has_contradiction`), **cam** = limitation chưa giải quyết (`has_unfilled_limitation`), **xanh** = cụm cô lập (`isolated_cluster`). Bổ sung mục chú giải gap vào GraphLegend, chỉ hiển thị khi gap mode ON.
+
+- **Phát sinh:** correct-course 2026-06-18 (gộp 2 reason vào 1 màu vàng gây nhầm — quyết định MVP "Option A" của Story 4.4 nay nâng cấp).
+- **🧭 Nhãn module/role:** `[frontend]` thuần — KnowledgeMapTab `CY_STYLE` + GraphLegend.
+- **Phụ thuộc:** Story 4.4 (gap mode + `reason` đã có trong response). KHÔNG phụ thuộc 4.6/4.7 (làm trước được ngay).
+- **FRs:** FR9.
+
+**AC nháp:**
+1. Map `reason` → 3 class: `has_contradiction` → `gap-contradiction` (đỏ #EF4444, giữ); `has_unfilled_limitation` → `gap-unfilled` (cam #F59E0B, MỚI); `isolated_cluster` → `gap-isolated` (xanh #3B82F6, đổi nghĩa: chỉ còn cô lập).
+2. Thêm selector `node.gap-unfilled` vào `CY_STYLE`; animation pulsing áp cho cả 3 class.
+3. Dedup priority giữ nguyên (contradiction > unfilled > isolated) — màu hiển thị theo reason ưu tiên.
+4. GraphLegend: thêm 3 dòng chú giải gap (đỏ/cam/xanh ↔ tên loại), CHỈ render khi `gapMode = true`; tắt gap mode → ẩn.
+5. NodeDetailCard "Giải thích khoảng trống này": prefill khác nhau theo 3 reason (đã có ở 4.4, kiểm tra map đủ 3 nhánh).
+6. Toggle OFF → removeClass cả 3 + removeStyle `border-width` (giữ fix review 4.4, không sót inline style).
+
+### Story 4.9: [Backend+FE] Sửa cắt text khi parse — kích hoạt References/CITES thật + giới hạn parse vào Admin Setting — ⏳ backlog 🟡
+
+Vá lỗ hổng tích hợp lộ sau Story 4.6: `DocumentParser` cắt PDF còn 2 trang/4000 ký tự → mục References (offset thực tế 11k–45k ký tự) không bao giờ tới LLM → `GraphExtractor` trả `references=[]` → `graph_extract_task` log "0 references, bỏ qua CITES" → 0 cạnh CITES. Nâng giới hạn parse (cấu hình động qua Admin) và bỏ cơ chế cắt head/đuôi trong `GraphExtractor` (gửi thẳng full_text đã bị `INGEST_MAX_EXTRACT_CHARS` chặn).
+
+- **Phát sinh:** correct-course 2026-06-19 (`sprint-change-proposal-2026-06-19-cites-references-truncation.md`). Hiện thực hóa giá trị Story 4.6 (marked done nhưng CITES rỗng). Lỗ hổng lọt review 4.6 vì test mock `GraphExtractor` → không chạy mốc cắt text thật.
+- **🧭 Nhãn module/role:** `[ingestion]` sửa `DocumentParser` + `GraphExtractor` + `worker` · `[admin]` thêm 2 key setting động · `[frontend]` Admin Settings hiển thị 2 input.
+- **Phụ thuộc:** Story 4.6 (producer CITES), Story 4.3 (Stage-2 worker + backfill endpoint), hạ tầng `system_settings` (Story 4.1).
+- **FRs:** FR7, FR9. (ARCH §5.2, §8.4.)
+
+**AC nháp (chi tiết hóa khi create-story):**
+1. `DocumentParser.extract_text` nhận `max_pages`/`max_chars` (default 2/4000 — giữ hành vi cũ cho đường upload-metadata); `_extract_pdf` dùng `range(min(max_pages, len(doc)))` + `text[:max_chars]`; `_extract_docx` dùng `text[:max_chars]`.
+2. 2 setting động mới (số nguyên ≥1) vào `_NUMERIC_SETTING_KEYS`: `INGEST_MAX_PDF_PAGES`=50, `INGEST_MAX_EXTRACT_CHARS`=150000 — đọc qua `get_setting(..., default=...)`, sửa được trong Admin Settings. KHÔNG cần Alembic migration.
+3. `worker._extract_text` + `_download_and_persist_pdf` đọc 2 setting và áp dụng (thay `min(2,..)`/`min(20,..)`/`MAX_TEXT_LENGTH` hardcode).
+4. `GraphExtractor`: bỏ `_build_extraction_text` + hằng `_EXTRACT_HEAD`/`_REF_TAIL_BUDGET`/`_REF_HEADINGS`; `extract` truyền thẳng `text` (đã bị `INGEST_MAX_EXTRACT_CHARS` chặn) vào prompt.
+5. **Test tích hợp KHÔNG mock `GraphExtractor`/`DocumentParser`**: fixture nhiều trang có References ở offset >30000 → `references` được trích, `graph_extract_task` add `SyncOutboxORM("CITES")`. (Lấp đúng lỗ hổng để defect lọt.)
+6. Frontend Admin Settings hiển thị + lưu 2 setting mới (i18n VI/EN), default hiển thị 50/150000.
+7. Vận hành: ghi chú chạy lại `POST /admin/backfill-graph-extraction` (idempotent) sau khi đặt giá trị → 6 paper khớp lại trên corpus đầy đủ.
+- **Lưu ý giới hạn:** paper dài hơn `INGEST_MAX_EXTRACT_CHARS` mà References sau mốc cắt vẫn mất reference (Admin nâng được). Ngưỡng `difflib` 0.85 giữ nguyên (defer từ 4.6). Giữ `INGEST_MAX_EXTRACT_CHARS` ~150k–200k để chặn token cost (nay là cận text gửi LLM).
+
 > **ℹ️ Garbage Collection (ARCH-2)** đã **gộp vào Story 4.1** (cùng module sync/Neo4j-lifecycle) — xem Story 4.1.
 
 ---
@@ -456,6 +569,8 @@ Landing page cuộn dọc: Hero banner, interactive demo simulator 3 cột, pric
 - **Real RAG Retrieval Node (thay `mock_rag_node`):** ✅ **Đã tạo Story 3.6** (correct-course 2026-06-17) để hiện thực hóa — pgvector cosine similarity trên `child_chunks.embedding`, trả `valid_citation_ids` (ordinals) cho Citation Guardrail, và emit `citation_map` (ordinal→chunk UUID) qua SSE cho tooltip. Đồng thời sửa lỗi 422 do `CitationBadge` gửi ordinal thay vì UUID vào `/api/citations/{uuid}`. Xem Epic 3 — Story 3.6 và `sprint-change-proposal-2026-06-17.md`. Liên quan FR6, FR10, NFR3.
 
 - **Gap Detection Backend (FR7) — Graph Extraction / GraphRAG Engine / Gap Analyst Agent:** ✅ **Đã tạo Story 4.3 (Graph Extraction), 4.4 (GraphRAG Engine + tô viền gap), 4.5 (Gap Analyst Agent)** (correct-course + Architect review 2026-06-17, sau gộp 8→6 story) để hiện thực hóa hệ con ontology học thuật (Finding/Limitation + edges CONTRADICTS/SUPPORTS/HAS_LIMITATION/FILLS_GAP), `gap_detection`/`graph_search` (Cypher traversal; Leiden communities → Phase 2), và agent phân tích khoảng trống qua chat. Trước đó Epic 4 chỉ phủ FR9 (vẽ), thiếu toàn bộ phần *sinh* dữ liệu khoảng trống mà `architecture.md` (§5.2, §6.2, §7) đã mô tả. Knowledge Map UI (Cytoscape + Node Detail) gộp thành Story 4.2. Xem Epic 4 và `sprint-change-proposal-2026-06-17-gap-detection.md`. Liên quan FR7, FR9.
+- **CITES & FILLS_GAP Producers (FR7) — kích hoạt thật Gap Detection:** ✅ **Đã tạo Story 4.6 (CITES producer), 4.7 (FILLS_GAP LLM-judge), 4.8 (tách màu 3 loại gap)** (correct-course 2026-06-18). Trước đó Story 4.4 chạy `gap_detection` nhưng `[:CITES]` và `[:FILLS_GAP]` (đã có trong ARCH §5.2) **chưa có producer** → mọi Paper bị cờ cô lập + unfilled (nhiễu), và 2 loại gap dùng chung 1 màu vàng gây nhầm. Xem `sprint-change-proposal-2026-06-18-cites-fillsgap-producers.md`. Liên quan FR7, FR9.
+- **UX Chatbot (FR6) — Markdown render + Layout workspace:** ✅ **Đã tạo Story 3.7 (render markdown câu trả lời, giữ CitationBadge) + 3.8 (tái cấu trúc layout: brand "Trợ lý nghiên cứu" + ô chat độc lập trên cùng + cột trò chuyện ở giữa, 3 tab bên phải có `›` ngăn cách)** (correct-course 2026-06-18). Trước đó câu trả lời hiện markdown thô khó đọc + ô chat bị chôn trong cột trợ lý (ẩn cột là mất ô chat). Mockup: `test-data/mockups/layout-chat-top.html`. Xem `sprint-change-proposal-2026-06-18-chat-markdown-layout.md`. Liên quan FR6, FR9.
 
 ---
 

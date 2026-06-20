@@ -155,6 +155,7 @@ class UploadDocumentUseCase:
             "authors": metadata.authors,
             "abstract": metadata.abstract,
             "year": metadata.year,
+            "doi": metadata.doi,
         }
 
 
@@ -169,6 +170,7 @@ class ConfirmMetadataUseCase:
         project_id: str,
         user_id: str,
         db: AsyncSession,
+        doi: str | None = None,
     ) -> dict:
         file_repo = PostgresUploadedFileRepository(db)
         uploaded_file = await file_repo.find_by_id(file_id)
@@ -200,6 +202,7 @@ class ConfirmMetadataUseCase:
                 source="manual",
                 file_path=uploaded_file.file_path,
                 status="pending",
+                doi=doi,
             )
             paper_repo = PostgresPaperRepository(db)
             saved_paper = await paper_repo.save_paper(paper)

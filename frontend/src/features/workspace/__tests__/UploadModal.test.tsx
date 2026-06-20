@@ -13,6 +13,7 @@ const MOCK_UPLOAD_RESPONSE = {
   authors: ['John Doe', 'Jane Smith'],
   abstract: 'This paper presents a comprehensive study...',
   year: 2023,
+  doi: null,
 };
 
 const MOCK_CONFIRM_RESPONSE = {

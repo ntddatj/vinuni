@@ -11,6 +11,8 @@ export function AdminSettingsPage() {
   const { user } = useAuthStore();
   const [maxPapers, setMaxPapers] = useState('15');
   const [broadQueryThreshold, setBroadQueryThreshold] = useState('50');
+  const [ingestMaxPdfPages, setIngestMaxPdfPages] = useState('50');
+  const [ingestMaxExtractChars, setIngestMaxExtractChars] = useState('150000');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -18,8 +20,12 @@ export function AdminSettingsPage() {
       .then((settings) => {
         const maxP = settings.find((s) => s.key === 'MAX_PAPERS_PER_PROJECT');
         const bqt = settings.find((s) => s.key === 'BROAD_QUERY_THRESHOLD');
+        const pdfPages = settings.find((s) => s.key === 'INGEST_MAX_PDF_PAGES');
+        const extractChars = settings.find((s) => s.key === 'INGEST_MAX_EXTRACT_CHARS');
         if (maxP) setMaxPapers(maxP.value);
         if (bqt) setBroadQueryThreshold(bqt.value);
+        if (pdfPages) setIngestMaxPdfPages(pdfPages.value);
+        if (extractChars) setIngestMaxExtractChars(extractChars.value);
       })
       .catch(() => {
         // Nếu không phải admin thì API trả 403 — chỉ hiển thị giá trị mặc định
@@ -40,6 +46,8 @@ export function AdminSettingsPage() {
       await Promise.all([
         updateAdminSetting('MAX_PAPERS_PER_PROJECT', maxPapers),
         updateAdminSetting('BROAD_QUERY_THRESHOLD', broadQueryThreshold),
+        updateAdminSetting('INGEST_MAX_PDF_PAGES', ingestMaxPdfPages),
+        updateAdminSetting('INGEST_MAX_EXTRACT_CHARS', ingestMaxExtractChars),
       ]);
       toast.success(t('admin.settings.saveSuccess'));
     } catch (err) {
@@ -81,6 +89,34 @@ export function AdminSettingsPage() {
             className={styles.input}
             value={broadQueryThreshold}
             onChange={(e) => setBroadQueryThreshold(e.target.value)}
+          />
+        </div>
+
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="ingest-max-pdf-pages">
+            {t('admin.settings.ingestMaxPdfPages')}
+          </label>
+          <input
+            id="ingest-max-pdf-pages"
+            type="number"
+            min={1}
+            className={styles.input}
+            value={ingestMaxPdfPages}
+            onChange={(e) => setIngestMaxPdfPages(e.target.value)}
+          />
+        </div>
+
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="ingest-max-extract-chars">
+            {t('admin.settings.ingestMaxExtractChars')}
+          </label>
+          <input
+            id="ingest-max-extract-chars"
+            type="number"
+            min={1}
+            className={styles.input}
+            value={ingestMaxExtractChars}
+            onChange={(e) => setIngestMaxExtractChars(e.target.value)}
           />
         </div>
 

@@ -37,8 +37,11 @@ def test_graph_has_guardrail_node():
     assert "citation_guardrail" in graph.nodes
 
 
-def test_guardrail_node_runs_after_real_rag():
-    # AC#6: node citation_guardrail phải chạy SAU real_rag (không chỉ tồn tại).
+def test_guardrail_node_runs_after_workers():
+    # AC#6: citation_guardrail phải chạy SAU cả research_rag VÀ gap_analyst.
+    # Story 4.5: topology Router-Worker — entry point là supervisor.
     graph = build_graph(None)
     edges = {(e.source, e.target) for e in graph.get_graph().edges}
-    assert ("real_rag", "citation_guardrail") in edges
+    assert "supervisor" in graph.nodes
+    assert ("research_rag", "citation_guardrail") in edges
+    assert ("gap_analyst", "citation_guardrail") in edges

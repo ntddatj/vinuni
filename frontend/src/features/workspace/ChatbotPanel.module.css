@@ -25,8 +25,8 @@
 }
 
 .resizeHandle:hover {
-  background: var(--accent-blue);
-  opacity: 0.3;
+  background: var(--accent-soft-border);
+  opacity: 1;
 }
 
 .toggleBtn {
@@ -50,8 +50,8 @@
 }
 
 .toggleBtn:hover {
-  color: var(--accent-blue);
-  border-color: var(--accent-blue);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .toggleBtnCollapsed {
@@ -135,8 +135,8 @@
 
 .userBubble {
   align-self: flex-end;
-  background: var(--accent-blue);
-  color: white;
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-text);
 }
 
 .aiBubble {
@@ -191,12 +191,17 @@
 
 .sendBtn {
   padding: 6px 12px;
-  background: var(--accent-blue);
+  background: var(--accent);
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
+  transition: background 0.15s;
+}
+
+.sendBtn:hover:not(:disabled) {
+  background: var(--accent-hover);
 }
 
 .sendBtn:disabled {
@@ -214,9 +219,9 @@
 .suggestionPill {
   padding: 4px 10px;
   background: none;
-  border: 1px solid var(--accent-blue);
+  border: 1px solid var(--accent);
   border-radius: 12px;
-  color: var(--accent-blue);
+  color: var(--accent);
   font-size: 11px;
   cursor: pointer;
   white-space: nowrap;
@@ -224,6 +229,6 @@
 }
 
 .suggestionPill:hover {
-  background: var(--accent-blue);
+  background: var(--accent);
   color: white;
 }

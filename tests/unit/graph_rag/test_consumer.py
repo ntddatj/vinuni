@@ -383,3 +383,64 @@ async def test_cypher_handler_uses_merge_not_create():
     queries_run.clear()
     await handle_paper_upserted(session, payload)
     assert queries_run, "Lần 2 vẫn phải chạy MERGE (idempotent)"
+
+
+@pytest.mark.asyncio
+async def test_handle_cites_merges_edge():
+    """handle_cites dùng MERGE [:CITES] trong Cypher (AC#11, Story 4.6)."""
+    from backend.src.modules.graph_rag.infrastructure.neo4j_adapter import handle_cites
+
+    queries_run = []
+
+    async def mock_run(query, **params):
+        queries_run.append(query)
+
+    session = AsyncMock()
+    session.run = AsyncMock(side_effect=mock_run)
+
+    payload = {"citing_paper_id": "paper-a", "cited_paper_id": "paper-b"}
+    await handle_cites(session, payload)
+
+    assert queries_run, "Phải có ít nhất 1 query Cypher được thực thi"
+    assert any("MERGE" in q.upper() for q in queries_run), "Query phải dùng MERGE"
+    assert any("CITES" in q for q in queries_run), "Query phải tạo edge CITES"
+
+
+@pytest.mark.asyncio
+async def test_handle_cites_skips_when_missing_ids():
+    """handle_cites không chạy Cypher khi payload thiếu citing hoặc cited id."""
+    from backend.src.modules.graph_rag.infrastructure.neo4j_adapter import handle_cites
+
+    session = AsyncMock()
+    session.run = AsyncMock()
+
+    await handle_cites(session, {"citing_paper_id": "paper-a"})  # thiếu cited
+    session.run.assert_not_awaited()
+
+    await handle_cites(session, {"cited_paper_id": "paper-b"})  # thiếu citing
+    session.run.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_handle_paper_deleted_marks_paper_and_orphan_ontology():
+    """handle_paper_deleted đánh :Deleted cho Paper VÀ node ontology mồ côi (không paper sống)."""
+    from backend.src.modules.graph_rag.infrastructure.neo4j_adapter import handle_paper_deleted
+
+    queries_run = []
+
+    async def mock_run(query, **params):
+        queries_run.append(query)
+
+    session = AsyncMock()
+    session.run = AsyncMock(side_effect=mock_run)
+
+    await handle_paper_deleted(session, {"paper_id": "paper-x"})
+
+    assert len(queries_run) == 2
+    # Query 1: đánh :Deleted cho Paper
+    assert "Paper" in queries_run[0] and ":Deleted" in queries_run[0]
+    # Query 2: đánh :Deleted cho ontology mồ côi, KHÔNG đụng node dùng chung với paper sống
+    q2 = queries_run[1]
+    assert ":Deleted" in q2
+    assert "Finding" in q2 and "Topic" in q2 and "Problem" in q2
+    assert "NOT EXISTS" in q2 and "live:Paper" in q2

@@ -174,6 +174,8 @@ async def stream_chat(
                 yield f"data: {json.dumps({'chunk': item['data']})}\n\n"
             elif t == "citation_map":
                 yield f"data: {json.dumps({'event': 'citation_map', 'data': item['data']})}\n\n"
+            elif t == "agent_thinking":
+                yield f"data: {json.dumps({'event': 'agent_thinking', 'status': item['status']})}\n\n"
             elif t == "done":
                 yield f"data: {json.dumps({'event': 'done', 'content': item.get('content', '')})}\n\n"
                 break
