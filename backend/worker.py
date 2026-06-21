@@ -8,11 +8,14 @@ Tiến trình được publish vào Redis để SSE endpoint stream về fronten
 import ipaddress
 import logging
 import socket
+from datetime import timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 
 from arq.connections import RedisSettings
-from sqlalchemy import delete, select
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import Float, delete, literal, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from backend.src.modules.identity.infrastructure.orm_models import (  # noqa: F401
@@ -34,8 +37,16 @@ from backend.src.modules.ingestion.infrastructure.task_progress import (
     publish_error,
     publish_progress,
 )
+from backend.src.modules.ingestion.infrastructure.fills_gap_judge import (
+    CANDIDATE_TEXT_LIMIT,
+    FILLS_GAP_SIM_THRESHOLD,
+    FILLS_GAP_TOP_K_CANDIDATES,
+    FillsGapJudge,
+)
+from backend.src.modules.ingestion.infrastructure.fills_gap_orm import FillsGapJudgementORM
 from backend.src.modules.ingestion.infrastructure.graph_extractor import GraphExtractor
 from backend.src.modules.ingestion.infrastructure.reference_matcher import match_reference
+from backend.src.modules.graph_rag.application.use_cases import list_unfilled_limitations
 from backend.src.modules.ingestion.infrastructure.text_chunker import chunk_text
 from backend.src.modules.admin.infrastructure.settings_orm import get_setting
 from backend.src.modules.graph_rag.infrastructure.garbage_collection import garbage_collection_task  # noqa: F401
@@ -457,6 +468,23 @@ async def _enqueue_graph_extract(redis, paper_id: str) -> None:
         )
 
 
+async def _enqueue_fills_gap(redis, project_id: str) -> None:
+    """Enqueue fills_gap_task best-effort (lỗi không làm fail graph_extract_task)."""
+    try:
+        await redis.enqueue_job(
+            "fills_gap_task",
+            project_id,
+            _job_id=f"fills_gap:{project_id}",
+            _defer_by=timedelta(seconds=60),
+        )
+    except Exception as e:
+        logger.warning(
+            "Không thể enqueue fills_gap_task cho project %s (graph_extract vẫn thành công): %s",
+            project_id,
+            e,
+        )
+
+
 def _clamp_score(value: object) -> float:
     """Ép confidence_score về float trong [0.0, 1.0]; trả 0.0 nếu LLM trả kiểu không hợp lệ."""
     try:
@@ -613,9 +641,195 @@ async def graph_extract_task(ctx, paper_id: str) -> None:
         await db.commit()
         logger.info("graph_extract_task: đã ghi ONTOLOGY_EXTRACTED cho paper %s", paper_id)
 
+        # Enqueue fills_gap_task best-effort (60s delay để chờ ONTOLOGY_EXTRACTED sync)
+        await _enqueue_fills_gap(ctx["redis"], paper.project_id)
+
+
+async def fills_gap_task(ctx, project_id: str) -> None:
+    """Phân tích FILLS_GAP: với mỗi Limitation chưa lấp → tiền lọc embedding → LLM judge → emit event."""
+    session_factory: async_sessionmaker = ctx["session_factory"]
+    neo4j_driver = ctx["neo4j_driver"]
+
+    async with neo4j_driver.session() as neo4j_session:
+        limitations = await list_unfilled_limitations(neo4j_session, project_id)
+
+    if not limitations:
+        logger.info("fills_gap_task: project %s — 0 unfilled limitations, no-op", project_id)
+        return
+
+    logger.info(
+        "fills_gap_task: project %s — %d unfilled limitations to process",
+        project_id,
+        len(limitations),
+    )
+
+    total_judged = 0
+    total_fills = 0
+    total_cache_hits = 0
+
+    async with session_factory() as db:
+        for limitation in limitations:
+            limitation_id = limitation["limitation_id"]
+            description = limitation["description"]
+            owner_paper_id = limitation["owner_paper_id"]
+
+            # Lấy user_id từ owner paper (để dùng LLM/embedding key của user)
+            owner_result = await db.execute(
+                select(PaperORM.user_id, PaperORM.title).where(PaperORM.id == owner_paper_id)
+            )
+            owner_row = owner_result.first()
+            if owner_row is None:
+                logger.warning("fills_gap_task: owner paper %s không tìm thấy", owner_paper_id)
+                continue
+            user_id = owner_row.user_id
+            owner_title = owner_row.title or ""
+
+            # Bước 1: embed description của limitation
+            embedding_client = GeminiEmbeddingClient(user_id, db)
+            embeddings = await embedding_client.embed_batch([description])
+            limitation_embedding = embeddings[0]
+
+            if all(v == 0.0 for v in limitation_embedding):
+                logger.warning(
+                    "fills_gap_task: embedding degraded cho limitation %s — bỏ qua", limitation_id
+                )
+                continue
+
+            # Bước 2: tiền lọc pgvector (mirror real_rag_node).
+            # return_type=Float BẮT BUỘC: khi đưa "<=>" vào SELECT, SQLAlchemy mặc định
+            # suy kiểu trả về = Vector (kế thừa cột embedding) → bộ giải mã Vector subscript
+            # giá trị float Postgres trả về → "'float' object is not subscriptable".
+            # real_rag_node không vướng vì chỉ dùng "<=>" trong ORDER BY (không SELECT).
+            query_vec = literal(limitation_embedding, Vector(768))
+            stmt = (
+                select(
+                    ChildChunkORM.paper_id,
+                    ChildChunkORM.embedding.op("<=>", return_type=Float)(query_vec).label("dist"),
+                )
+                .where(ChildChunkORM.project_id == project_id)
+                .where(ChildChunkORM.embedding.is_not(None))
+                .where(ChildChunkORM.paper_id != owner_paper_id)
+                .order_by("dist")
+                .limit(FILLS_GAP_TOP_K_CANDIDATES * 4)
+            )
+            rows = (await db.execute(stmt)).all()
+
+            # Gom distinct paper_id theo dist nhỏ nhất, giữ paper có similarity >= ngưỡng
+            seen_papers: dict[str, float] = {}
+            for row in rows:
+                pid = str(row.paper_id)
+                dist = float(row.dist)
+                if pid not in seen_papers or dist < seen_papers[pid]:
+                    seen_papers[pid] = dist
+
+            candidate_paper_ids = [
+                pid for pid, dist in seen_papers.items()
+                if (1.0 - dist) >= FILLS_GAP_SIM_THRESHOLD
+            ][:FILLS_GAP_TOP_K_CANDIDATES]
+
+            for candidate_paper_id in candidate_paper_ids:
+                # Guard self-fill
+                if candidate_paper_id == owner_paper_id:
+                    continue
+
+                # Skip nếu đã cache
+                cache_result = await db.execute(
+                    select(FillsGapJudgementORM).where(
+                        FillsGapJudgementORM.limitation_id == limitation_id,
+                        FillsGapJudgementORM.candidate_paper_id == candidate_paper_id,
+                    )
+                )
+                if cache_result.scalar_one_or_none() is not None:
+                    total_cache_hits += 1
+                    continue
+
+                # Lấy context candidate (bỏ paper soft-deleted — mirror CITES producer 4.6)
+                cand_paper_result = await db.execute(
+                    select(PaperORM.title, PaperORM.abstract).where(
+                        PaperORM.id == candidate_paper_id,
+                        PaperORM.is_deleted == False,  # noqa: E712
+                    )
+                )
+                cand_paper_row = cand_paper_result.first()
+                if cand_paper_row is None:
+                    continue
+                candidate_title = cand_paper_row.title or ""
+
+                # Candidate text = abstract + nội dung ParentChunk, dừng sớm khi đủ
+                # CANDIDATE_TEXT_LIMIT (judge cũng cắt, nhưng tránh dựng chuỗi lớn vô ích
+                # cho mỗi cặp limitation×candidate).
+                chunk_result = await db.execute(
+                    select(ParentChunkORM)
+                    .where(ParentChunkORM.paper_id == candidate_paper_id)
+                    .order_by(ParentChunkORM.chunk_index)
+                )
+                chunks = chunk_result.scalars().all()
+                text_parts = [cand_paper_row.abstract or ""]
+                acc_len = len(text_parts[0])
+                for c in chunks:
+                    if acc_len >= CANDIDATE_TEXT_LIMIT:
+                        break
+                    text_parts.append(c.content)
+                    acc_len += len(c.content) + 2
+                candidate_text = "\n\n".join(text_parts)
+
+                # Gọi LLM judge
+                judge = FillsGapJudge(user_id=user_id, db=db)
+                result = await judge.judge(description, owner_title, candidate_title, candidate_text)
+
+                if result is None:
+                    # Lỗi LLM — KHÔNG cache (để retry lần sau)
+                    continue
+
+                total_judged += 1
+
+                # Ghi cache (cả yes lẫn no để tránh re-judge)
+                db.add(FillsGapJudgementORM(
+                    project_id=project_id,
+                    limitation_id=limitation_id,
+                    candidate_paper_id=candidate_paper_id,
+                    fills=result["fills"],
+                    reason=result.get("reason"),
+                ))
+
+                if result["fills"]:
+                    total_fills += 1
+                    db.add(SyncOutboxORM(
+                        event_type="FILLS_GAP",
+                        project_id=project_id,
+                        payload={
+                            "filler_paper_id": candidate_paper_id,
+                            "limitation_id": limitation_id,
+                            "project_id": project_id,
+                        },
+                    ))
+
+            # Commit sau mỗi limitation để tránh transaction quá lớn.
+            # Bọc IntegrityError: hai lần chạy song song (enqueue _defer_by vs admin backfill,
+            # max_jobs=2) có thể cùng judge một cặp → vi phạm uq_fills_gap_pair. Rollback +
+            # tiếp tục để KHÔNG đầu độc session (PendingRollbackError sẽ cuốn cả task còn lại).
+            # Run kia đã ghi cache + FILLS_GAP cho cặp trùng nên không mất dữ liệu (idempotent).
+            try:
+                await db.commit()
+            except IntegrityError:
+                await db.rollback()
+                logger.warning(
+                    "fills_gap_task: commit limitation %s xung đột unique (chạy song song?) — rollback, bỏ qua",
+                    limitation_id,
+                )
+
+    logger.info(
+        "fills_gap_task: project %s — %d limitations, %d pairs judged, %d FILLS_GAP emitted, %d cache-hits",
+        project_id,
+        len(limitations),
+        total_judged,
+        total_fills,
+        total_cache_hits,
+    )
+
 
 class WorkerSettings:
-    functions = [ingest_paper_task, graph_extract_task]
+    functions = [ingest_paper_task, graph_extract_task, fills_gap_task]
     on_startup = startup
     on_shutdown = shutdown
     max_jobs = 2  # NFR4: concurrency_limit=2

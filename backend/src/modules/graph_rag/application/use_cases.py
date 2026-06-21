@@ -219,6 +219,15 @@ WHERE NOT p:Deleted
 RETURN DISTINCT p.id AS paper_id
 """
 
+_CYPHER_UNFILLED_LIMITATION_FULL = """
+MATCH (p:Paper {project_id: $pid})-[:HAS_LIMITATION]->(l:Limitation {project_id: $pid})
+WHERE NOT p:Deleted
+  AND NOT EXISTS {
+    MATCH (filler:Paper {project_id: $pid})-[:FILLS_GAP]->(l) WHERE NOT filler:Deleted
+  }
+RETURN DISTINCT l.id AS limitation_id, l.description AS description, p.id AS owner_paper_id
+"""
+
 _CYPHER_GRAPH_SEARCH = """
 MATCH (start {project_id: $pid})-[r]-(neighbor {project_id: $pid})
 WHERE (start.title IN $entities OR start.name IN $entities)
@@ -346,3 +355,28 @@ class GapDetectionUseCase:
             ))
 
         return GraphContext(nodes=list(nodes_map.values()), edges=edges)
+
+
+async def list_unfilled_limitations(session, project_id: str) -> list[dict]:
+    """Đọc Neo4j trả về Limitation chưa được lấp (chưa có [:FILLS_GAP]) trong project.
+
+    Dùng bởi fills_gap_task (ingestion producer) — graph_rag sở hữu mọi đọc Neo4j.
+    Trả [{"limitation_id", "description", "owner_paper_id"}]. Lỗi Neo4j → trả [].
+    """
+    try:
+        result = await session.run(_CYPHER_UNFILLED_LIMITATION_FULL, pid=project_id)
+        records = [rec async for rec in result]
+        return [
+            {
+                "limitation_id": rec["limitation_id"],
+                "description": rec["description"],
+                "owner_paper_id": rec["owner_paper_id"],
+            }
+            for rec in records
+            if rec["description"]  # bỏ qua description rỗng/None
+        ]
+    except Exception:
+        _logger.warning(
+            "list_unfilled_limitations: Neo4j query failed cho project %s", project_id, exc_info=True
+        )
+        return []

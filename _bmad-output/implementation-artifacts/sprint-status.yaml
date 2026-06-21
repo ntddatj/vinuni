@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-15T17:36:00+07:00
-last_updated: 2026-06-21T11:55:00+07:00
+last_updated: 2026-06-21T20:30:00+07:00
 project: C2-App-053
 project_key: NOKEY
 tracking_system: file-system
@@ -90,7 +90,7 @@ development_status:
   # follow-up correct-course 2026-06-18 (sprint-change-proposal-2026-06-18-cites-fillsgap-producers.md):
   # kích hoạt CITES/FILLS_GAP thật (đã có ARCH §5.2, thiếu producer) + tách màu 3 loại gap. Thứ tự: 4-8 → 4-6 → 4-7.
   4-6-cites-producer-trich-references-khop-paper: done
-  4-7-fills-gap-producer-llm-judge-limitation-paper: backlog
+  4-7-fills-gap-producer-llm-judge-limitation-paper: done
   4-8-tach-mau-3-loai-gap-chu-giai-legend: done
   # follow-up correct-course 2026-06-19 (sprint-change-proposal-2026-06-19-cites-references-truncation.md):
   # CITES rỗng dù 4.6 done — DocumentParser cắt 2 trang/4000 ký tự nên References không tới LLM.

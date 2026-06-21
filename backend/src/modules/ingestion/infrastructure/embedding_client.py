@@ -6,11 +6,14 @@ from backend.src.shared.infra.llm.router import LLMRouter
 from backend.src.shared.infra.settings import get_settings
 
 logger = logging.getLogger(__name__)
-EMBEDDING_DIM = 768  # text-embedding-004 output dimension
+EMBEDDING_DIM = 768  # gemini-embedding-001 truncated (Matryoshka) xuống 768 chiều
+# text-embedding-004 đã bị Google gỡ (404 NOT_FOUND) → dùng gemini-embedding-001.
+# Cosine (<=>) bất biến với độ lớn nên không cần re-normalize khi cắt chiều.
+EMBEDDING_MODEL = "models/gemini-embedding-001"
 
 
 class GeminiEmbeddingClient:
-    """Tạo vector embedding 768 chiều cho child chunks qua Gemini text-embedding-004.
+    """Tạo vector embedding 768 chiều cho child chunks qua Gemini gemini-embedding-001.
 
     Lấy API key qua LLMRouter (ưu tiên key của user, fallback system key). Nếu lỗi
     bất kỳ → trả về zero-vectors để worker vẫn hoàn tất (graceful degradation).
@@ -31,8 +34,9 @@ class GeminiEmbeddingClient:
                 raise RuntimeError("Không có API key Gemini để tạo embedding")
 
             embeddings = GoogleGenerativeAIEmbeddings(
-                model="models/text-embedding-004",
+                model=EMBEDDING_MODEL,
                 google_api_key=api_key,
+                output_dimensionality=EMBEDDING_DIM,
             )
             return await embeddings.aembed_documents(texts)
         except Exception as e:

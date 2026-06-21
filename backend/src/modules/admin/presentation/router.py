@@ -133,3 +133,41 @@ async def backfill_graph_extraction(
         "enqueued": enqueued,
         "message": f"Đã đưa {enqueued} tài liệu vào hàng đợi trích xuất ontology",
     }
+
+
+@router.post("/backfill-fills-gap")
+async def backfill_fills_gap(
+    _: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Enqueue fills_gap_task cho mọi project có paper đã indexed (idempotent via _job_id)."""
+    from arq import create_pool
+    from arq.connections import RedisSettings
+
+    from backend.src.shared.infra.settings import get_settings as _get_settings
+
+    result = await db.execute(
+        select(PaperORM.project_id).where(
+            PaperORM.status == "indexed", PaperORM.is_deleted.is_(False)
+        ).distinct()
+    )
+    project_ids = result.scalars().all()
+
+    settings = _get_settings()
+    redis = await create_pool(RedisSettings.from_dsn(settings.arq_redis_url))
+    enqueued = 0
+    try:
+        for project_id in project_ids:
+            await redis.enqueue_job(
+                "fills_gap_task",
+                str(project_id),
+                _job_id=f"fills_gap:{project_id}",
+            )
+            enqueued += 1
+    finally:
+        await redis.aclose()
+
+    return {
+        "enqueued": enqueued,
+        "message": f"Đã đưa {enqueued} project vào hàng đợi phân tích FILLS_GAP",
+    }

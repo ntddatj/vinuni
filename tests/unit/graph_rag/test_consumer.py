@@ -422,6 +422,55 @@ async def test_handle_cites_skips_when_missing_ids():
 
 
 @pytest.mark.asyncio
+async def test_handle_fills_gap_merges_edge():
+    """handle_fills_gap dùng MERGE [:FILLS_GAP] trong Cypher (AC#13, Story 4.7)."""
+    from backend.src.modules.graph_rag.infrastructure.neo4j_adapter import handle_fills_gap
+
+    queries_run = []
+
+    async def mock_run(query, **params):
+        queries_run.append(query)
+
+    session = AsyncMock()
+    session.run = AsyncMock(side_effect=mock_run)
+
+    payload = {
+        "filler_paper_id": "paper-filler",
+        "limitation_id": "lim-1",
+        "project_id": "proj-1",
+    }
+    await handle_fills_gap(session, payload)
+
+    assert queries_run, "Phải có ít nhất 1 query Cypher được thực thi"
+    assert any("MERGE" in q.upper() for q in queries_run), "Query phải dùng MERGE"
+    assert any("FILLS_GAP" in q for q in queries_run), "Query phải tạo edge FILLS_GAP"
+
+
+@pytest.mark.asyncio
+async def test_handle_fills_gap_skips_when_missing_ids():
+    """handle_fills_gap không chạy Cypher khi payload thiếu filler_paper_id hoặc limitation_id."""
+    from backend.src.modules.graph_rag.infrastructure.neo4j_adapter import handle_fills_gap
+
+    session = AsyncMock()
+    session.run = AsyncMock()
+
+    await handle_fills_gap(session, {"limitation_id": "lim-1", "project_id": "proj-1"})
+    session.run.assert_not_awaited()
+
+    session.run.reset_mock()
+    await handle_fills_gap(session, {"filler_paper_id": "paper-filler", "project_id": "proj-1"})
+    session.run.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_fills_gap_in_handler_map():
+    """FILLS_GAP phải có trong HANDLER_MAP (AC#13)."""
+    from backend.src.modules.graph_rag.infrastructure.neo4j_adapter import HANDLER_MAP
+
+    assert "FILLS_GAP" in HANDLER_MAP
+
+
+@pytest.mark.asyncio
 async def test_handle_paper_deleted_marks_paper_and_orphan_ontology():
     """handle_paper_deleted đánh :Deleted cho Paper VÀ node ontology mồ côi (không paper sống)."""
     from backend.src.modules.graph_rag.infrastructure.neo4j_adapter import handle_paper_deleted

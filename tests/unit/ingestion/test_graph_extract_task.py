@@ -436,6 +436,31 @@ async def test_graph_extract_task_real_extractor_emits_cites():
     db.commit.assert_awaited_once()
 
 
+# ─── Story 4.7: enqueue fills_gap_task sau graph_extract_task ────────────────
+
+@pytest.mark.asyncio
+async def test_graph_extract_task_enqueues_fills_gap():
+    """Sau commit thành công → ctx['redis'].enqueue_job được gọi với 'fills_gap_task' + project_id."""
+    paper = _make_paper(id="paper-1", project_id="proj-1")
+    db = _make_db(paper=paper, chunks=[])
+    redis = AsyncMock()
+    ctx = {"session_factory": _FakeSessionFactory(db), "redis": redis}
+
+    with patch("backend.worker.GraphExtractor") as MockExtractor:
+        instance = AsyncMock()
+        instance.extract = AsyncMock(return_value={**_BASE_DATA})
+        MockExtractor.return_value = instance
+
+        await graph_extract_task(ctx, "paper-1")
+
+    # Kiểm tra enqueue_job đã được gọi với "fills_gap_task"
+    redis.enqueue_job.assert_awaited()
+    call_args = redis.enqueue_job.call_args
+    assert call_args.args[0] == "fills_gap_task"
+    assert call_args.args[1] == "proj-1"
+    assert call_args.kwargs.get("_job_id") == "fills_gap:proj-1"
+
+
 @pytest.mark.asyncio
 async def test_graph_extract_task_real_extractor_text_with_references_at_offset():
     """Story 4.9 AC#5: với text có References ở offset ~37000, GraphExtractor THẬT gửi đủ

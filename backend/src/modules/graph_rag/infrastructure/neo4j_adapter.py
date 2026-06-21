@@ -344,6 +344,36 @@ async def handle_ontology_extracted(session: AsyncSession, payload: dict) -> Non
         )
 
 
+async def handle_fills_gap(session: AsyncSession, payload: dict) -> None:
+    """MERGE [:FILLS_GAP] edge giữa Paper filler và Limitation trong Neo4j (Story 4.7).
+
+    Idempotent (MERGE); MATCH không MERGE node để tránh tạo node rác.
+    Guard thiếu id → log + return (mirror handle_cites).
+    """
+    filler_id = payload.get("filler_paper_id")
+    limitation_id = payload.get("limitation_id")
+    project_id = payload.get("project_id")
+    if not filler_id or not limitation_id:
+        logger.warning(
+            "FILLS_GAP payload thiếu filler_paper_id hoặc limitation_id: %s", payload
+        )
+        return
+    cypher = """
+        MATCH (p:Paper {id: $filler_id}), (l:Limitation {id: $limitation_id})
+        WHERE p.project_id = $project_id AND l.project_id = $project_id
+        MERGE (p)-[:FILLS_GAP]->(l)
+    """ if project_id else """
+        MATCH (p:Paper {id: $filler_id}), (l:Limitation {id: $limitation_id})
+        MERGE (p)-[:FILLS_GAP]->(l)
+    """
+    await session.run(
+        cypher,
+        filler_id=filler_id,
+        limitation_id=limitation_id,
+        project_id=project_id,
+    )
+
+
 # Dispatch map: event_type → handler. Mở rộng được: Story 4.3 chỉ cần thêm entry vào đây
 # (không sửa worker core). Key = event_type string, value = async callable(session, payload).
 HANDLER_MAP: dict = {
@@ -352,4 +382,5 @@ HANDLER_MAP: dict = {
     "PAPER_DELETED": handle_paper_deleted,
     "CITES": handle_cites,
     "ONTOLOGY_EXTRACTED": handle_ontology_extracted,
+    "FILLS_GAP": handle_fills_gap,
 }
