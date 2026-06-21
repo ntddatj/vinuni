@@ -7,6 +7,40 @@
   flex-direction: column;
   padding: 12px 0;
   flex-shrink: 0;
+  transition: width 0.18s ease;
+}
+
+.sidebarCollapsed {
+  width: 64px;
+}
+
+/* Hàng trên cùng chứa nút thu gọn/mở rộng */
+.topBar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 12px 8px;
+}
+
+.sidebarCollapsed .topBar {
+  justify-content: center;
+  padding: 0 0 8px;
+}
+
+.toggleBtn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--ink-secondary);
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+
+.toggleBtn:hover {
+  background: var(--surface-base);
+  color: var(--accent);
 }
 
 .createButton {
@@ -28,6 +62,17 @@
 .createButton:hover {
   background: var(--accent);
   color: #fff;
+}
+
+.sidebarCollapsed .createButton {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 12px;
+  padding: 0;
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .listTitle {
@@ -63,6 +108,55 @@
 
 .projectRow:hover .actions {
   display: flex;
+}
+
+/* Dự án đang mở — tô nổi bật (chế độ mở rộng) */
+.projectRow.active {
+  background: var(--surface-base);
+}
+
+.projectRow.active .projectName {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Chế độ thu gọn: căn giữa avatar, không tô nền cả hàng */
+.sidebarCollapsed .projectRow {
+  justify-content: center;
+  padding: 5px 0;
+}
+
+.sidebarCollapsed .projectRow:hover,
+.sidebarCollapsed .projectRow.active {
+  background: transparent;
+}
+
+/* Avatar chữ cái đầu của dự án */
+.avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--border-hairline);
+  background: var(--surface-base);
+  color: var(--ink-primary);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.1s ease, border-color 0.1s ease, color 0.1s ease;
+}
+
+.avatar:hover {
+  border-color: var(--accent);
+}
+
+.projectRow.active .avatar {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
 }
 
 .projectName {
@@ -122,4 +216,9 @@
 
 .viewAllLink:hover {
   color: var(--accent);
+}
+
+.sidebarCollapsed .viewAllLink {
+  text-align: center;
+  padding: 10px 0;
 }

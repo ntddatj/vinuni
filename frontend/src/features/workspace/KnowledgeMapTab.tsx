@@ -443,6 +443,29 @@ export function KnowledgeMapTab({ projectId }: KnowledgeMapTabProps) {
     if (cy.elements().length > 0) cy.fit(undefined, 30);
   }, [activeTab, graphNodes]);
 
+  // ResizeObserver: khi container đổi kích thước (vd: cột ConversationColumn collapse/resize)
+  // → Cytoscape resize + fit để canvas không trắng/lệch (AC#7).
+  useEffect(() => {
+    if (!containerRef.current) return;
+    let rafId: number | null = null;
+    const observer = new ResizeObserver(() => {
+      if (activeTab !== 'graph') return;
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const cy = cyRef.current;
+        if (!cy) return;
+        cy.resize();
+        if (cy.elements().length > 0) cy.fit(undefined, 30);
+        rafId = null;
+      });
+    });
+    observer.observe(containerRef.current);
+    return () => {
+      observer.disconnect();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+  }, [activeTab]);
+
   // Double-click expand
   const handleExpand = useCallback(
     async (nodeId: string) => {

@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-15T17:36:00+07:00
-last_updated: 2026-06-21T00:00:00+07:00
+last_updated: 2026-06-21T11:55:00+07:00
 project: C2-App-053
 project_key: NOKEY
 tracking_system: file-system
@@ -70,8 +70,8 @@ development_status:
   3-6-real-rag-retriever-pgvector-citation-map-sse: done
   # follow-up correct-course 2026-06-18 (sprint-change-proposal-2026-06-18-chat-markdown-layout.md):
   # UX chatbot — markdown render + tái cấu trúc layout workspace. Thứ tự: 3-7 → 3-8.
-  3-7-render-markdown-cau-tra-loi-chatbot: backlog
-  3-8-tai-cau-truc-layout-workspace-o-chat-doc-lap: backlog
+  3-7-render-markdown-cau-tra-loi-chatbot: done
+  3-8-tai-cau-truc-layout-workspace-o-chat-doc-lap: done
   epic-3-retrospective: optional
 
   # epic-4 gộp 8→5 story (4.1–4.5) để giảm số lần vibecode (cốt lõi 🟢 → trí tuệ/FR7 🟡)

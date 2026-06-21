@@ -9,11 +9,7 @@ export function CenterWorkspace() {
   const activeTab = useWorkspaceStore((s) => s.activeTab);
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
   const activeProjectId = useProjectStore((s) => s.activeProjectId);
-  const projects = useProjectStore((s) => s.projects);
   const { t } = useTranslation();
-
-  const activeProject = projects.find((p) => p.id === activeProjectId);
-  const projectTitle = activeProject?.name ?? t('workspace.selectProject');
 
   return (
     <div className={styles.workspace}>
@@ -25,6 +21,7 @@ export function CenterWorkspace() {
         >
           {t('tab.library')}
         </button>
+        <span className={styles.tabSep}>›</span>
         <button
           className={`${styles.tab} ${activeTab === 'graph' ? styles.tabActive : ''}`}
           onClick={() => setActiveTab('graph')}
@@ -32,6 +29,7 @@ export function CenterWorkspace() {
         >
           {t('tab.graph')}
         </button>
+        <span className={styles.tabSep}>›</span>
         <button
           className={`${styles.tab} ${activeTab === 'writing' ? styles.tabActive : ''}`}
           onClick={() => setActiveTab('writing')}
@@ -39,10 +37,6 @@ export function CenterWorkspace() {
         >
           {t('tab.writing')}
         </button>
-      </div>
-
-      <div className={styles.projectHeader}>
-        <h2 className={styles.projectTitle}>{projectTitle}</h2>
       </div>
 
       <div className={styles.tabContent}>

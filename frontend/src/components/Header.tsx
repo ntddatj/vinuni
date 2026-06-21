@@ -4,6 +4,7 @@ import { logoutUser } from '@/api/auth';
 import { useThemeStore } from '@/store/themeStore';
 import { useLanguageStore } from '@/store/languageStore';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useProjectStore } from '@/store/projectStore';
 import styles from './Header.module.css';
 
 export function Header() {
@@ -12,6 +13,9 @@ export function Header() {
   const { theme, toggleTheme } = useThemeStore();
   const { toggleLang } = useLanguageStore();
   const { t, lang } = useTranslation();
+  const activeProjectId = useProjectStore((s) => s.activeProjectId);
+  const projects = useProjectStore((s) => s.projects);
+  const activeProject = projects.find((p) => p.id === activeProjectId);
 
   async function handleLogout() {
     try {
@@ -24,7 +28,12 @@ export function Header() {
 
   return (
     <header className={styles.header}>
-      <span className={styles.logo}>C2 Research</span>
+      <div className={styles.brand}>
+        <span className={styles.logo}>{t('header.brand')}</span>
+        {activeProject && (
+          <span className={styles.badge}>{activeProject.name}</span>
+        )}
+      </div>
       <div className={styles.actions}>
         {user?.role === 'admin' && (
           <button

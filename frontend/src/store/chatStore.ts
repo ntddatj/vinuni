@@ -9,6 +9,7 @@ interface ChatState {
   isLoadingMessages: boolean;
   isStreaming: boolean;
   streamingContent: string;
+  thinkingStatus: string | null;
 
   setThreads: (threads: ChatThread[]) => void;
   setActiveThreadId: (id: string | null) => void;
@@ -19,6 +20,7 @@ interface ChatState {
   setLoadingThreads: (v: boolean) => void;
   setLoadingMessages: (v: boolean) => void;
   setStreaming: (v: boolean) => void;
+  setThinkingStatus: (status: string | null) => void;
   addOptimisticUserMessage: (content: string) => string;
   removeMessage: (id: string) => void;
   reset: () => void;
@@ -33,6 +35,7 @@ const INIT: Pick<
   | 'isLoadingMessages'
   | 'isStreaming'
   | 'streamingContent'
+  | 'thinkingStatus'
 > = {
   threads: [],
   activeThreadId: null,
@@ -41,6 +44,7 @@ const INIT: Pick<
   isLoadingMessages: false,
   isStreaming: false,
   streamingContent: '',
+  thinkingStatus: null,
 };
 
 export const useChatStore = create<ChatState>()((set, get) => ({
@@ -52,10 +56,11 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   setLoadingThreads: (v) => set({ isLoadingThreads: v }),
   setLoadingMessages: (v) => set({ isLoadingMessages: v }),
   setStreaming: (v) => set({ isStreaming: v }),
+  setThinkingStatus: (status) => set({ thinkingStatus: status }),
 
   appendChunk: (chunk) => set((s) => ({ streamingContent: s.streamingContent + chunk })),
 
-  beginStreaming: () => set({ isStreaming: true, streamingContent: '' }),
+  beginStreaming: () => set({ isStreaming: true, streamingContent: '', thinkingStatus: null }),
 
   commitStreamingMessage: (cleanedContent?: string, citationMap?: Record<string, string>) => {
     // Dùng cleanedContent từ SSE done event (đã qua guardrail) nếu có,
