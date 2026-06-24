@@ -1,6 +1,9 @@
 # Deferred Work
 
-## Deferred from: code review of story-4.9 (2026-06-21)
+## Deferred from: code review of story-4.10 (2026-06-22)
+
+- 🟡 **"Mở trên Bản đồ" của card mâu thuẫn chỉ focus `papers[0]`** — `GapTab.tsx` onOpenOnMap dùng `item.papers[0]?.paper_id`; paper thứ hai của cặp mâu thuẫn không center được từ card. Chấp nhận: gap-mode trên Map vẫn tô viền CẢ HAI paper, focus paper chính là mặc định hợp lý. Thêm lựa chọn focus paper2 nếu UX cần. [frontend/src/features/workspace/GapTab.tsx]
+- 🟡 **Paper `title` NULL → hiện paper id trên card** — `gap_detection_detailed` fallback `rec.get("...title") or rec["...id"]` nên không in "None", nhưng với paper chưa enrich metadata sẽ lộ UUID thay vì tên. Hiếm gặp (ingestion luôn trích title). Cân nhắc placeholder "Bài báo chưa có tiêu đề" nếu xuất hiện. [backend/src/modules/graph_rag/application/use_cases.py]
 
 - 🟠 **Chưa có endpoint re-ingest (Stage-1)** — Story 4.9 nâng giới hạn parse chỉ áp ở Stage-1 (parse→chunk→`ParentChunkORM`). Paper đã ingest dưới giới hạn cũ (2 trang/4000 ký tự) có chunk bị cắt; `POST /admin/backfill-graph-extraction` chỉ re-chạy Stage-2 (đọc chunk cũ) → KHÔNG khôi phục References. Hiện phải xóa + upload lại thủ công. Đề xuất follow-up: thêm `POST /admin/reingest` enqueue `ingest_document_task` cho paper `indexed` (mirror pattern backfill, idempotent qua `_job_id`). [backend/src/modules/admin/presentation/router.py:100; backend/worker.py:469-512]
 

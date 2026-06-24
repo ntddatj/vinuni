@@ -54,3 +54,20 @@ class GapContext:
 class GraphContext:
     nodes: list[GraphNode] = field(default_factory=list)
     edges: list[GraphEdge] = field(default_factory=list)
+
+
+@dataclass
+class GapPaperRef:
+    paper_id: str
+    title: str
+
+
+@dataclass
+class GapDetailItem:
+    id: str
+    type: str  # "contradiction" | "unfilled_limitation" | "isolated_cluster"
+    reason: str  # alias của type
+    title: str
+    description: str
+    papers: list[GapPaperRef] = field(default_factory=list)
+    evidence: dict = field(default_factory=dict)

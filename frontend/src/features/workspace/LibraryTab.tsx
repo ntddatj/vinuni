@@ -20,28 +20,23 @@ interface LibraryTabProps {
 
 export function LibraryTab({ projectId }: LibraryTabProps) {
   const { t } = useTranslation();
+  const librarySubTab = useWorkspaceStore((s) => s.librarySubTab);
+  const setLibrarySubTab = useWorkspaceStore((s) => s.setLibrarySubTab);
   const isUploadModalOpen = useWorkspaceStore((s) => s.isUploadModalOpen);
   const setUploadModalOpen = useWorkspaceStore((s) => s.setUploadModalOpen);
   const setDocumentCount = useWorkspaceStore((s) => s.setDocumentCount);
-  const [query, setQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResult, setSearchResult] = useState<SearchResponse | null>(null);
-  // Theo dõi NHIỀU tài liệu đang ingest song song (upload + add-from-search liên tiếp),
-  // tránh việc tài liệu thêm sau ghi đè mất theo dõi tài liệu trước.
+
+  // State dùng chung — nguồn sự thật duy nhất (AC#5)
   const [processingDocumentIds, setProcessingDocumentIds] = useState<string[]>([]);
   const [docRefreshTrigger, setDocRefreshTrigger] = useState(0);
   const [addingPapers, setAddingPapers] = useState<Set<string>>(new Set());
   const [papers, setPapers] = useState<ProjectPaper[]>([]);
   const [maxPapers, setMaxPapers] = useState(15);
-  const searchIdRef = useRef(0);
 
   useEffect(() => {
     setDocumentCount(papers.length);
   }, [papers.length, setDocumentCount]);
 
-  // Reset trạng thái theo project khi đổi project — tránh documentCount và
-  // upload modal của project cũ rò rỉ sang project mới (suggestions sai context,
-  // modal upload bật nhầm). DocumentList sẽ nạp lại papers cho project mới.
   useEffect(() => {
     setPapers([]);
     setUploadModalOpen(false);
@@ -50,9 +45,7 @@ export function LibraryTab({ projectId }: LibraryTabProps) {
   useEffect(() => {
     getPublicSettings()
       .then((s) => setMaxPapers(s.maxPapersPerProject))
-      .catch(() => {
-        // Giữ mặc định 15 nếu không lấy được cấu hình
-      });
+      .catch(() => {});
   }, []);
 
   const isAtLimit = papers.length >= maxPapers;
@@ -69,7 +62,7 @@ export function LibraryTab({ projectId }: LibraryTabProps) {
     (documentId: string) => {
       toast.success(t('ingestion.done'));
       stopProcessing(documentId);
-      setDocRefreshTrigger((n) => n + 1); // DocumentList refetch → onPapersLoad update isAtLimit
+      setDocRefreshTrigger((n) => n + 1);
     },
     [t, stopProcessing],
   );
@@ -91,54 +84,195 @@ export function LibraryTab({ projectId }: LibraryTabProps) {
     [t, stopProcessing],
   );
 
-  async function handleAddFromSearch(paper: PaperResult) {
-    if (!projectId) return;
-    const key = paper.doi ?? paper.arxivId ?? paper.title;
-    setAddingPapers((prev) => new Set(prev).add(key));
-    try {
-      const res = await addPaperFromSearch({
-        projectId,
-        title: paper.title,
-        authors: paper.authors,
-        abstract: paper.abstract,
-        year: paper.year,
-        doi: paper.doi,
-        arxivId: paper.arxivId,
-        url: paper.url,
-        pdfUrl: paper.pdfUrl,
-        source: paper.source,
-      });
-      startProcessing(res.documentId);
-      setDocRefreshTrigger((n) => n + 1);
-      toast.success(t('search.addSuccess'));
-    } catch (err: unknown) {
-      // Hiển thị đúng message từ server cho 403 (giới hạn tài liệu), không dùng fallback generic
-      const axiosErr = err as { response?: { data?: { detail?: string } } };
-      const serverDetail = axiosErr?.response?.data?.detail;
-      toast.error(serverDetail ?? getErrorMessage(err, t('search.addError')));
-    } finally {
-      setAddingPapers((prev) => {
-        const s = new Set(prev);
-        s.delete(key);
-        return s;
-      });
-    }
-  }
+  const handleAddFromSearch = useCallback(
+    async (paper: PaperResult) => {
+      if (!projectId) return;
+      const key = paper.doi ?? paper.arxivId ?? paper.title;
+      setAddingPapers((prev) => new Set(prev).add(key));
+      try {
+        const res = await addPaperFromSearch({
+          projectId,
+          title: paper.title,
+          authors: paper.authors,
+          abstract: paper.abstract,
+          year: paper.year,
+          doi: paper.doi,
+          arxivId: paper.arxivId,
+          url: paper.url,
+          pdfUrl: paper.pdfUrl,
+          source: paper.source,
+        });
+        startProcessing(res.documentId);
+        setDocRefreshTrigger((n) => n + 1);
+        toast.success(t('search.addSuccess'));
+      } catch (err: unknown) {
+        const axiosErr = err as { response?: { data?: { detail?: string } } };
+        const serverDetail = axiosErr?.response?.data?.detail;
+        toast.error(serverDetail ?? getErrorMessage(err, t('search.addError')));
+      } finally {
+        setAddingPapers((prev) => {
+          const s = new Set(prev);
+          s.delete(key);
+          return s;
+        });
+      }
+    },
+    [projectId, startProcessing, t],
+  );
+
+  return (
+    <div className={styles.container}>
+      {/* Segmented control — 2 tab con */}
+      <div className={styles.subTabBar}>
+        <button
+          type="button"
+          className={`${styles.subTab} ${librarySubTab === 'documents' ? styles.subTabActive : ''}`}
+          onClick={() => setLibrarySubTab('documents')}
+        >
+          {t('library.documents')}
+        </button>
+        <button
+          type="button"
+          className={`${styles.subTab} ${librarySubTab === 'search' ? styles.subTabActive : ''}`}
+          onClick={() => setLibrarySubTab('search')}
+        >
+          {t('library.searchSubTab')}
+        </button>
+      </div>
+
+      {/* IngestionProgress luôn hiển thị (theo dõi quá trình ingest kể cả khi đổi tab con) */}
+      {processingDocumentIds.map((id) => (
+        <IngestionProgress
+          key={id}
+          documentId={id}
+          onComplete={() => handleIngestionComplete(id)}
+          onError={() => handleIngestionError(id)}
+          onTimeout={() => handleIngestionTimeout(id)}
+        />
+      ))}
+
+      {isUploadModalOpen && projectId && (
+        <UploadModal
+          projectId={projectId}
+          onClose={() => setUploadModalOpen(false)}
+          onSuccess={(documentId) => {
+            setUploadModalOpen(false);
+            startProcessing(documentId);
+          }}
+        />
+      )}
+
+      {/* Tab con "Tài liệu trong dự án" */}
+      <div style={{ display: librarySubTab === 'documents' ? 'block' : 'none' }}>
+        <DocumentsSubTab
+          projectId={projectId}
+          maxPapers={maxPapers}
+          isAtLimit={isAtLimit}
+          docRefreshTrigger={docRefreshTrigger}
+          onPapersLoad={setPapers}
+          onDeleteSuccess={() => setDocRefreshTrigger((n) => n + 1)}
+          onOpenUpload={() => setUploadModalOpen(true)}
+          t={t}
+        />
+      </div>
+
+      {/* Tab con "Tìm kiếm báo cáo khoa học" */}
+      <div style={{ display: librarySubTab === 'search' ? 'block' : 'none' }}>
+        <SearchSubTab
+          projectId={projectId}
+          isAtLimit={isAtLimit}
+          addingPapers={addingPapers}
+          onAddFromSearch={handleAddFromSearch}
+          t={t}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── DocumentsSubTab ───────────────────────────────────────────────────────────
+
+interface DocumentsSubTabProps {
+  projectId: string | null;
+  maxPapers: number;
+  isAtLimit: boolean;
+  docRefreshTrigger: number;
+  onPapersLoad: (papers: ProjectPaper[]) => void;
+  onDeleteSuccess: () => void;
+  onOpenUpload: () => void;
+  t: (key: TranslationKey) => string;
+}
+
+function DocumentsSubTab({
+  projectId,
+  maxPapers,
+  isAtLimit,
+  docRefreshTrigger,
+  onPapersLoad,
+  onDeleteSuccess,
+  onOpenUpload,
+  t,
+}: DocumentsSubTabProps) {
+  return (
+    <div>
+      {projectId && (
+        <div style={{ marginBottom: 12 }}>
+          <button
+            type="button"
+            className={styles.uploadButton}
+            onClick={onOpenUpload}
+            disabled={isAtLimit}
+            title={isAtLimit ? t('library.uploadDisabledLimit') : undefined}
+          >
+            {t('library.uploadOffline')}
+          </button>
+        </div>
+      )}
+
+      {isAtLimit && projectId && (
+        <div className={styles.limitAlert}>
+          {t('library.limitReached').replace('{limit}', String(maxPapers))}
+        </div>
+      )}
+
+      {projectId && (
+        <DocumentList
+          projectId={projectId}
+          refreshTrigger={docRefreshTrigger}
+          onPapersLoad={onPapersLoad}
+          onDeleteSuccess={onDeleteSuccess}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── SearchSubTab ──────────────────────────────────────────────────────────────
+
+interface SearchSubTabProps {
+  projectId: string | null;
+  isAtLimit: boolean;
+  addingPapers: Set<string>;
+  onAddFromSearch: (paper: PaperResult) => void;
+  t: (key: TranslationKey) => string;
+}
+
+function SearchSubTab({ projectId, isAtLimit, addingPapers, onAddFromSearch, t }: SearchSubTabProps) {
+  const [query, setQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResult, setSearchResult] = useState<SearchResponse | null>(null);
+  const searchIdRef = useRef(0);
 
   async function handleSearch() {
     const trimmed = query.trim();
     if (!trimmed) return;
-
     const currentId = ++searchIdRef.current;
     setIsSearching(true);
     setSearchResult(null);
-
     try {
       const result = await searchPapers(trimmed, 10);
       if (currentId !== searchIdRef.current) return;
-
       setSearchResult(result);
-
       if (result.warnings.length >= 2) {
         toast.error(t('search.bothSourcesFailed'));
       } else if (result.warnings.length === 1) {
@@ -148,9 +282,7 @@ export function LibraryTab({ projectId }: LibraryTabProps) {
       if (currentId !== searchIdRef.current) return;
       toast.error(getErrorMessage(err, t('search.searchError')));
     } finally {
-      if (currentId === searchIdRef.current) {
-        setIsSearching(false);
-      }
+      if (currentId === searchIdRef.current) setIsSearching(false);
     }
   }
 
@@ -172,20 +304,16 @@ export function LibraryTab({ projectId }: LibraryTabProps) {
       if (currentId !== searchIdRef.current) return;
       toast.error(getErrorMessage(err, t('search.searchError')));
     } finally {
-      if (currentId === searchIdRef.current) {
-        setIsSearching(false);
-      }
+      if (currentId === searchIdRef.current) setIsSearching(false);
     }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') {
-      handleSearch();
-    }
+    if (e.key === 'Enter') handleSearch();
   }
 
   return (
-    <div className={styles.container}>
+    <div>
       <div className={styles.searchBar}>
         <input
           type="text"
@@ -204,45 +332,7 @@ export function LibraryTab({ projectId }: LibraryTabProps) {
         >
           {isSearching ? t('search.searching') : t('search.searchButton')}
         </button>
-        {projectId && (
-          <button
-            type="button"
-            className={styles.uploadButton}
-            onClick={() => setUploadModalOpen(true)}
-            disabled={isAtLimit}
-            title={isAtLimit ? t('library.uploadDisabledLimit') : undefined}
-          >
-            {t('upload.button')}
-          </button>
-        )}
       </div>
-
-      {isAtLimit && projectId && (
-        <div className={styles.limitAlert}>
-          {t('library.limitReached').replace('{limit}', String(maxPapers))}
-        </div>
-      )}
-
-      {isUploadModalOpen && projectId && (
-        <UploadModal
-          projectId={projectId}
-          onClose={() => setUploadModalOpen(false)}
-          onSuccess={(documentId) => {
-            setUploadModalOpen(false);
-            startProcessing(documentId);
-          }}
-        />
-      )}
-
-      {processingDocumentIds.map((id) => (
-        <IngestionProgress
-          key={id}
-          documentId={id}
-          onComplete={() => handleIngestionComplete(id)}
-          onError={() => handleIngestionError(id)}
-          onTimeout={() => handleIngestionTimeout(id)}
-        />
-      ))}
 
       {searchResult?.isBroadQuery && searchResult.suggestions.length > 0 && (
         <BroadQuerySuggestions
@@ -269,7 +359,7 @@ export function LibraryTab({ projectId }: LibraryTabProps) {
                     t={t}
                     canAdd={projectId !== null && !isAtLimit}
                     isAdding={addingPapers.has(key)}
-                    onAddToProject={handleAddFromSearch}
+                    onAddToProject={onAddFromSearch}
                   />
                 );
               })}
@@ -277,18 +367,11 @@ export function LibraryTab({ projectId }: LibraryTabProps) {
           )}
         </>
       )}
-
-      {projectId && (
-        <DocumentList
-          projectId={projectId}
-          refreshTrigger={docRefreshTrigger}
-          onPapersLoad={setPapers}
-          onDeleteSuccess={() => setDocRefreshTrigger((n) => n + 1)}
-        />
-      )}
     </div>
   );
 }
+
+// ── Shared UI components ──────────────────────────────────────────────────────
 
 interface BroadQuerySuggestionsProps {
   suggestions: string[];

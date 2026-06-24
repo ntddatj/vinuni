@@ -9,7 +9,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient, ASGITransport
 
-from backend.src.modules.graph_rag.domain.entities import GapContext, GapFlaggedNode
+from backend.src.modules.graph_rag.domain.entities import GapContext, GapDetailItem, GapFlaggedNode, GapPaperRef
 from backend.src.modules.graph_rag.presentation.router import router as graph_router
 from backend.src.modules.identity.domain.entities import User
 from backend.src.modules.identity.infrastructure.auth_dependencies import get_current_user
@@ -335,3 +335,109 @@ async def test_get_graph_gaps_project_not_owned_returns_404():
             resp = await client.get("/api/projects/proj-1/graph/gaps")
 
     assert resp.status_code == 404
+
+
+# ── tests: GET /graph/gaps/detailed ──────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_get_graph_gaps_detailed_returns_items():
+    """GET /graph/gaps/detailed với 1 item → 200 với đúng shape."""
+    detail_item = GapDetailItem(
+        id="f1_f2",
+        type="contradiction",
+        reason="contradiction",
+        title="Mâu thuẫn giữa Paper A và Paper B",
+        description="Finding 1 text / Finding 2 text",
+        papers=[
+            GapPaperRef(paper_id="p1", title="Paper A"),
+            GapPaperRef(paper_id="p2", title="Paper B"),
+        ],
+        evidence={"finding1_id": "f1", "finding2_id": "f2"},
+    )
+    app = _build_app(_make_user(), _make_project())
+
+    with patch("backend.src.modules.graph_rag.presentation.router.get_neo4j_driver", return_value=_FakeNeo4jDriver()):
+        with patch("backend.src.modules.graph_rag.presentation.router.GapDetectionUseCase") as MockUseCase:
+            instance = AsyncMock()
+            instance.gap_detection_detailed = AsyncMock(return_value=[detail_item])
+            MockUseCase.return_value = instance
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                resp = await client.get("/api/projects/proj-1/graph/gaps/detailed")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "items" in data
+    assert len(data["items"]) == 1
+    item = data["items"][0]
+    assert item["id"] == "f1_f2"
+    assert item["type"] == "contradiction"
+    assert "Paper A" in item["title"]
+    assert len(item["papers"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_get_graph_gaps_detailed_returns_empty_when_no_gaps():
+    """GET /graph/gaps/detailed khi không có gaps → 200 với items=[]."""
+    app = _build_app(_make_user(), _make_project())
+
+    with patch("backend.src.modules.graph_rag.presentation.router.get_neo4j_driver", return_value=_FakeNeo4jDriver()):
+        with patch("backend.src.modules.graph_rag.presentation.router.GapDetectionUseCase") as MockUseCase:
+            instance = AsyncMock()
+            instance.gap_detection_detailed = AsyncMock(return_value=[])
+            MockUseCase.return_value = instance
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                resp = await client.get("/api/projects/proj-1/graph/gaps/detailed")
+
+    assert resp.status_code == 200
+    assert resp.json()["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_get_graph_gaps_detailed_project_not_owned_returns_404():
+    """GET /graph/gaps/detailed với project không thuộc user → 404 (IDOR guard)."""
+    mock_project = _make_project(user_id="other-user")
+    mock_user = _make_user(user_id="user-1")
+
+    app = _build_app(mock_user, mock_project)
+
+    with patch("backend.src.modules.graph_rag.presentation.router.get_neo4j_driver", return_value=_FakeNeo4jDriver()):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.get("/api/projects/proj-1/graph/gaps/detailed")
+
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_graph_gaps_detailed_neo4j_error_returns_empty_items():
+    """Neo4j lỗi → gap_detection_detailed trả [] → endpoint trả items: []."""
+    app = _build_app(_make_user(), _make_project())
+
+    with patch("backend.src.modules.graph_rag.presentation.router.get_neo4j_driver", return_value=_FakeNeo4jDriver()):
+        with patch("backend.src.modules.graph_rag.presentation.router.GapDetectionUseCase") as MockUseCase:
+            instance = AsyncMock()
+            instance.gap_detection_detailed = AsyncMock(return_value=[])
+            MockUseCase.return_value = instance
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                resp = await client.get("/api/projects/proj-1/graph/gaps/detailed")
+
+    assert resp.status_code == 200
+    assert resp.json()["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_get_graph_gaps_old_endpoint_still_works():
+    """/graph/gaps cũ vẫn hoạt động sau khi thêm /graph/gaps/detailed."""
+    app = _build_app(_make_user(), _make_project())
+
+    with patch("backend.src.modules.graph_rag.presentation.router.get_neo4j_driver", return_value=_FakeNeo4jDriver()):
+        with patch("backend.src.modules.graph_rag.presentation.router.GapDetectionUseCase") as MockUseCase:
+            instance = AsyncMock()
+            instance.gap_detection = AsyncMock(return_value=GapContext())
+            MockUseCase.return_value = instance
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                resp = await client.get("/api/projects/proj-1/graph/gaps")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "flagged_nodes" in data
+    assert "flagged_edges" in data

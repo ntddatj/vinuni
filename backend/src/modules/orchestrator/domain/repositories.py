@@ -18,3 +18,9 @@ class ChatThreadRepository(ABC):
 
     @abstractmethod
     async def save_message(self, thread_id: str, role: str, content: str) -> ChatMessage: ...
+
+    @abstractmethod
+    async def update_title(self, thread_id: str, title: str) -> ChatThread | None: ...
+
+    @abstractmethod
+    async def delete(self, thread_id: str) -> None: ...

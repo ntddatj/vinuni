@@ -1,0 +1,197 @@
+.container {
+  width: 100%;
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.noProject {
+  text-align: center;
+  color: var(--ink-secondary);
+  padding: 48px 0;
+  font-size: 14px;
+}
+
+.loading {
+  text-align: center;
+  color: var(--ink-secondary);
+  padding: 48px 0;
+  font-size: 14px;
+}
+
+.error {
+  text-align: center;
+  color: var(--state-danger, #ef4444);
+  padding: 48px 0;
+  font-size: 14px;
+}
+
+.empty {
+  text-align: center;
+  color: var(--ink-secondary);
+  padding: 48px 24px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.group {
+  margin-bottom: 24px;
+}
+
+.groupTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-secondary);
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.groupCount {
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline);
+  border-radius: 99px;
+  padding: 1px 7px;
+  color: var(--ink-secondary);
+}
+
+.cardList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--rounded-md);
+  padding: 14px 16px;
+  border-left-width: 4px;
+}
+
+.cardContradiction {
+  border-left-color: #EF4444;
+}
+
+.cardUnfilled {
+  border-left-color: #F59E0B;
+}
+
+.cardIsolated {
+  border-left-color: #3B82F6;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.cardTitle {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-primary);
+  line-height: 1.4;
+}
+
+.badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 99px;
+  color: white;
+  white-space: nowrap;
+}
+
+.badgeContradiction {
+  background: #EF4444;
+}
+
+.badgeUnfilled {
+  background: #F59E0B;
+}
+
+.badgeIsolated {
+  background: #3B82F6;
+}
+
+.cardDescription {
+  font-size: 12px;
+  color: var(--ink-secondary);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+.papersLine {
+  font-size: 11px;
+  color: var(--ink-secondary);
+  line-height: 1.45;
+  margin-bottom: 8px;
+}
+
+.papersLine .papersLabel {
+  font-weight: 600;
+  color: var(--ink-primary);
+}
+
+.evidenceLine {
+  font-size: 11px;
+  color: var(--ink-secondary);
+  opacity: 0.75;
+  margin-bottom: 10px;
+  font-style: italic;
+}
+
+.cardActions {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btnSecondary {
+  font-size: 12px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--rounded-sm);
+  background: var(--surface-base);
+  color: var(--ink-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.btnSecondary:hover {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+.btnPrimary {
+  font-size: 12px;
+  padding: 4px 10px;
+  border: none;
+  border-radius: var(--rounded-sm);
+  background: var(--accent-blue);
+  color: white;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s ease;
+}
+
+.btnPrimary:hover {
+  opacity: 0.88;
+}

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<style>
+  :root {
+    --surface-base:#EEF1F5; --surface-raised:#FFFFFF; --surface-hover:#F2F4F7;
+    --ink-primary:#1D2939; --ink-secondary:#64748B; --ink-tertiary:#98A2B3;
+    --border-hairline:#E4E7EC; --accent:#6366F1; --accent-strong:#4338CA; --state-danger:#EF4444;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--surface-base); padding:40px; }
+  .panel { width:380px; background:var(--surface-raised); border-left:1px solid var(--border-hairline); border-radius:8px; box-shadow:0 8px 30px rgba(0,0,0,.12); overflow:hidden; }
+  .conv-header { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid var(--border-hairline); position:relative; }
+  .conv-title { font-size:14px; font-weight:600; margin:0; color:var(--ink-primary); }
+  .conv-actions button { background:none; border:none; padding:4px 6px; border-radius:4px; font-size:14px; cursor:pointer; }
+
+  /* Popover */
+  .popover { margin:8px; border:1px solid var(--border-hairline); border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.12); overflow:hidden; }
+  .ph { padding:8px 12px; font-weight:600; font-size:12px; color:var(--ink-secondary); border-bottom:1px solid var(--border-hairline); }
+  .list { list-style:none; margin:0; padding:4px 0; }
+  .row { display:flex; align-items:center; padding-right:6px; }
+  .row:hover { background:var(--surface-hover); }
+  .threadItem { flex:1; min-width:0; display:flex; justify-content:space-between; padding:8px 12px; background:none; border:none; cursor:pointer; text-align:left; }
+  .threadTitle { font-size:13px; color:var(--ink-primary); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .threadDate { font-size:11px; color:var(--ink-tertiary); margin-left:8px; white-space:nowrap; }
+  .actions { display:flex; gap:2px; flex-shrink:0; }
+  .iconBtn { background:none; border:none; cursor:pointer; padding:4px 6px; border-radius:4px; font-size:13px; color:var(--ink-secondary); white-space:nowrap; }
+  .iconBtn:hover { background:var(--surface-base); }
+  .iconBtn.danger { color:var(--state-danger); border:1px solid var(--state-danger); }
+  .editRow,.confirmRow { display:flex; align-items:center; gap:4px; width:100%; padding:6px 10px; }
+  .editInput { flex:1; min-width:0; padding:6px 8px; border:1px solid var(--accent); border-radius:4px; font-size:13px; color:var(--ink-primary); background:var(--surface-base); }
+  .confirmText { flex:1; min-width:0; font-size:12px; color:var(--ink-secondary); }
+  .note { font-size:12px; color:var(--ink-secondary); margin:0 8px 8px; }
+  .tag { display:inline-block; font-size:10px; background:var(--accent); color:#fff; border-radius:8px; padding:1px 6px; margin-left:6px; vertical-align:middle; }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <div class="conv-header">
+      <h3 class="conv-title">Trợ lý nghiên cứu</h3>
+      <div class="conv-actions"><button>🕐</button><button>✏️</button><button style="color:var(--ink-secondary);font-size:16px">›</button></div>
+    </div>
+    <div class="popover">
+      <div class="ph">Lịch sử Chat</div>
+      <ul class="list">
+        <!-- Hàng thường: tiêu đề LLM sinh + nút sửa/xoá (hiện khi hover) -->
+        <li class="row">
+          <button class="threadItem"><span class="threadTitle">So sánh chi phí giảm thải các phương án<span class="tag">LLM</span></span><span class="threadDate">21/06/2026</span></button>
+          <div class="actions"><button class="iconBtn">✏️</button><button class="iconBtn">🗑️</button></div>
+        </li>
+        <!-- Hàng đang ĐỔI TÊN (inline edit) -->
+        <li class="row">
+          <div class="editRow">
+            <input class="editInput" value="Lộ trình chuyển dịch năng lượng tái tạo" />
+            <button class="iconBtn">✓</button>
+            <button class="iconBtn">✕</button>
+          </div>
+        </li>
+        <!-- Hàng thường -->
+        <li class="row">
+          <button class="threadItem"><span class="threadTitle">Tác động đa dạng sinh học vùng ven biển<span class="tag">LLM</span></span><span class="threadDate">20/06/2026</span></button>
+          <div class="actions"><button class="iconBtn">✏️</button><button class="iconBtn">🗑️</button></div>
+        </li>
+        <!-- Hàng đang XÁC NHẬN XOÁ -->
+        <li class="row">
+          <div class="confirmRow">
+            <span class="confirmText">Xóa cuộc trò chuyện này?</span>
+            <button class="iconBtn danger">Xóa</button>
+            <button class="iconBtn">Hủy</button>
+          </div>
+        </li>
+        <li class="row">
+          <button class="threadItem"><span class="threadTitle">Cơ chế định giá carbon EU ETS<span class="tag">LLM</span></span><span class="threadDate">18/06/2026</span></button>
+          <div class="actions"><button class="iconBtn">✏️</button><button class="iconBtn">🗑️</button></div>
+        </li>
+      </ul>
+    </div>
+    <p class="note">Tiêu đề có nhãn <span class="tag">LLM</span> được sinh tự động từ tin nhắn đầu. Hover một dòng để hiện nút Sửa/Xoá.</p>
+  </div>
+</body>
+</html>

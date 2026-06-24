@@ -2,7 +2,7 @@
   position: relative;
   flex-shrink: 0;
   background: var(--surface-raised);
-  border-right: 1px solid var(--border-hairline);
+  border-left: 1px solid var(--border-hairline);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -11,17 +11,17 @@
 }
 
 .columnCollapsed {
-  border-right: none;
+  border-left: none;
   width: 0 !important;
   /* Cột rộng 0 nhưng .column có overflow:hidden → nút mở lại (.expandBtn, absolute)
      sẽ bị cắt mất, khiến không thể mở lại cột. Cho overflow:visible để nút tràn
-     sang mép trái cột 3 tab và vẫn bấm được. */
+     sang mép phải cột 3 tab và vẫn bấm được. */
   overflow: visible;
 }
 
 .resizeHandle {
   position: absolute;
-  right: 0;
+  left: 0;
   top: 0;
   bottom: 0;
   width: 4px;
@@ -40,7 +40,7 @@
   flex-direction: column;
   min-height: 0;
   min-width: 0;
-  padding-right: 4px;
+  padding-left: 4px;
 }
 
 .header {
@@ -147,7 +147,7 @@
 
 .expandBtn {
   position: absolute;
-  left: 0;
+  right: 0;
   top: 50%;
   transform: translateY(-50%);
   width: 20px;
@@ -157,7 +157,7 @@
   justify-content: center;
   background: var(--surface-raised);
   border: 1px solid var(--border-hairline);
-  border-radius: 0 4px 4px 0;
+  border-radius: 4px 0 0 4px;
   cursor: pointer;
   font-size: 16px;
   color: var(--ink-secondary);

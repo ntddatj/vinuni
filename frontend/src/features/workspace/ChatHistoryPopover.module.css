@@ -26,8 +26,19 @@
   padding: 4px 0;
 }
 
+.row {
+  display: flex;
+  align-items: center;
+  padding-right: 6px;
+}
+
+.row:hover {
+  background: var(--surface-hover);
+}
+
 .threadItem {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   display: flex;
   justify-content: space-between;
   padding: 8px 12px;
@@ -37,8 +48,69 @@
   text-align: left;
 }
 
-.threadItem:hover {
-  background: var(--surface-hover);
+.actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.row:hover .actions {
+  opacity: 1;
+}
+
+.iconBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--ink-secondary);
+  white-space: nowrap;
+}
+
+.iconBtn:hover:not(:disabled) {
+  background: var(--surface-base);
+}
+
+.iconBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.iconBtn.danger {
+  color: var(--state-danger);
+  border: 1px solid var(--state-danger);
+}
+
+.editRow,
+.confirmRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 6px 10px;
+}
+
+.editInput {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--surface-base);
+  color: var(--ink-primary);
+}
+
+.confirmText {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--ink-secondary);
 }
 
 .threadTitle {

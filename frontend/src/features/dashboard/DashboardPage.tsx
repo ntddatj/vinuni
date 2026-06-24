@@ -6,7 +6,6 @@ import { getErrorMessage } from '@/api/errors';
 import { useProjectStore } from '@/store/projectStore';
 import { ProjectSidebar } from '@/features/workspace/ProjectSidebar';
 import { CenterWorkspace } from '@/features/workspace/CenterWorkspace';
-import { ChatBar } from '@/features/workspace/ChatBar';
 import { ConversationColumn } from '@/features/workspace/ConversationColumn';
 import styles from './DashboardPage.module.css';
 
@@ -26,13 +25,8 @@ export function DashboardPage() {
   return (
     <div className={styles.layout}>
       <ProjectSidebar />
-      <div className={styles.main}>
-        <ChatBar />
-        <div className={styles.body}>
-          <ConversationColumn />
-          <CenterWorkspace />
-        </div>
-      </div>
+      <CenterWorkspace />
+      <ConversationColumn />
     </div>
   );
 }

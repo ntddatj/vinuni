@@ -3,8 +3,10 @@ import logging
 
 from backend.src.modules.graph_rag.domain.entities import (
     GapContext,
+    GapDetailItem,
     GapFlaggedEdge,
     GapFlaggedNode,
+    GapPaperRef,
     GraphContext,
     GraphData,
     GraphEdge,
@@ -228,6 +230,36 @@ WHERE NOT p:Deleted
 RETURN DISTINCT l.id AS limitation_id, l.description AS description, p.id AS owner_paper_id
 """
 
+_CYPHER_CONTRADICTS_DETAILED = """
+MATCH (f1:Finding {project_id: $pid})-[:CONTRADICTS]->(f2:Finding {project_id: $pid})
+MATCH (p1:Paper {project_id: $pid})-[:HAS_FINDING]->(f1)
+MATCH (p2:Paper {project_id: $pid})-[:HAS_FINDING]->(f2)
+WHERE NOT p1:Deleted AND NOT p2:Deleted
+RETURN DISTINCT f1.id AS finding1_id, f2.id AS finding2_id,
+       p1.id AS paper1_id, p2.id AS paper2_id,
+       f1.description AS finding1_text, f2.description AS finding2_text,
+       p1.title AS paper1_title, p2.title AS paper2_title
+"""
+
+_CYPHER_ISOLATED_DETAILED = """
+MATCH (p:Paper {project_id: $pid}) WHERE NOT p:Deleted
+OPTIONAL MATCH (p)-[:CITES]-(other:Paper {project_id: $pid})
+WHERE NOT other:Deleted
+WITH p, count(other) AS cites_count
+WHERE cites_count = 0
+RETURN p.id AS paper_id, p.title AS paper_title
+"""
+
+_CYPHER_UNFILLED_LIMITATION_DETAILED = """
+MATCH (p:Paper {project_id: $pid})-[:HAS_LIMITATION]->(l:Limitation {project_id: $pid})
+WHERE NOT p:Deleted
+  AND NOT EXISTS {
+    MATCH (filler:Paper {project_id: $pid})-[:FILLS_GAP]->(l) WHERE NOT filler:Deleted
+  }
+RETURN DISTINCT l.id AS limitation_id, l.description AS description,
+       p.id AS owner_paper_id, p.title AS owner_paper_title
+"""
+
 _CYPHER_GRAPH_SEARCH = """
 MATCH (start {project_id: $pid})-[r]-(neighbor {project_id: $pid})
 WHERE (start.title IN $entities OR start.name IN $entities)
@@ -299,6 +331,109 @@ class GapDetectionUseCase:
 
         flagged_nodes = [GapFlaggedNode(paper_id=pid, reason=r) for pid, r in seen.items()]
         return GapContext(flagged_nodes=flagged_nodes, flagged_edges=flagged_edges)
+
+    async def gap_detection_detailed(self, project_id: str) -> list[GapDetailItem]:
+        """Trả danh sách card giàu cho 3 loại gap — không gọi LLM, text từ entity thật.
+
+        Pattern không-raise: bọc toàn bộ (mở session + từng query) → trả [] khi sự cố.
+        """
+        items: list[GapDetailItem] = []
+
+        try:
+            async with self._driver.session() as session:
+                # Query 1: CONTRADICTS DETAILED
+                try:
+                    result = await session.run(_CYPHER_CONTRADICTS_DETAILED, pid=project_id)
+                    records = [rec async for rec in result]
+                    # CONTRADICTS là cạnh có hướng — extractor có thể tạo cả f1→f2 lẫn f2→f1
+                    # cho cùng một mâu thuẫn. Khử trùng theo cặp finding không phân biệt thứ tự
+                    # để không hiện 2 card trùng (id f1_f2 và f2_f1 vốn khác nhau).
+                    seen_pairs: set[frozenset[str]] = set()
+                    for rec in records:
+                        pair = frozenset((rec["finding1_id"], rec["finding2_id"]))
+                        if pair in seen_pairs:
+                            continue
+                        seen_pairs.add(pair)
+                        f1_text = rec.get("finding1_text") or ""
+                        f2_text = rec.get("finding2_text") or ""
+                        p1_title = rec.get("paper1_title") or rec["paper1_id"]
+                        p2_title = rec.get("paper2_title") or rec["paper2_id"]
+                        item_id = f"{rec['finding1_id']}_{rec['finding2_id']}"
+                        # Tiêu đề ngắn gọn theo LOẠI khoảng trống (tên bài báo hiển thị ở
+                        # dòng "Nghiên cứu liên quan", không nhồi vào tiêu đề). Phân biệt
+                        # mâu thuẫn nội tại (cùng 1 bài) vs giữa hai bài khác nhau.
+                        same_paper = rec["paper1_id"] == rec["paper2_id"]
+                        title = (
+                            "Hai kết luận trái ngược trong cùng một nghiên cứu"
+                            if same_paper
+                            else "Hai nghiên cứu đưa ra kết luận trái ngược nhau"
+                        )
+                        parts = [p for p in [f1_text, f2_text] if p]
+                        description = (
+                            " ⟷ ".join(parts) if parts
+                            else "Hai phát hiện trong dữ liệu đưa ra kết luận trái ngược nhau."
+                        )
+                        items.append(GapDetailItem(
+                            id=item_id,
+                            type="contradiction",
+                            reason="contradiction",
+                            title=title,
+                            description=description,
+                            papers=[
+                                GapPaperRef(paper_id=rec["paper1_id"], title=p1_title),
+                                GapPaperRef(paper_id=rec["paper2_id"], title=p2_title),
+                            ],
+                            # Số liệu cho dòng "bằng chứng" — KHÔNG lộ id nội bộ ra UI.
+                            evidence={"finding_count": 2, "paper_count": 1 if same_paper else 2},
+                        ))
+                except Exception:
+                    _logger.warning("gap_detection_detailed: query CONTRADICTS failed", exc_info=True)
+
+                # Query 2: ISOLATED DETAILED
+                try:
+                    result = await session.run(_CYPHER_ISOLATED_DETAILED, pid=project_id)
+                    records = [rec async for rec in result]
+                    for rec in records:
+                        paper_title = rec.get("paper_title") or rec["paper_id"]
+                        items.append(GapDetailItem(
+                            id=rec["paper_id"],
+                            type="isolated_cluster",
+                            reason="isolated_cluster",
+                            title="Nghiên cứu chưa có liên kết trích dẫn",
+                            description="Bài báo này không có cạnh trích dẫn (CITES) với bất kỳ nghiên cứu nào khác trong dự án, cho thấy nó đang đứng tách biệt.",
+                            papers=[GapPaperRef(paper_id=rec["paper_id"], title=paper_title)],
+                            evidence={"neighbor_count": 0},
+                        ))
+                except Exception:
+                    _logger.warning("gap_detection_detailed: query ISOLATED failed", exc_info=True)
+
+                # Query 3: UNFILLED LIMITATION DETAILED
+                try:
+                    result = await session.run(_CYPHER_UNFILLED_LIMITATION_DETAILED, pid=project_id)
+                    records = [rec async for rec in result]
+                    for rec in records:
+                        paper_title = rec.get("owner_paper_title") or rec["owner_paper_id"]
+                        description = rec.get("description") or ""
+                        if not description:
+                            continue
+                        items.append(GapDetailItem(
+                            id=rec["limitation_id"],
+                            type="unfilled_limitation",
+                            reason="unfilled_limitation",
+                            title="Hạn chế nghiên cứu chưa được giải quyết",
+                            description=description,
+                            papers=[GapPaperRef(paper_id=rec["owner_paper_id"], title=paper_title)],
+                            # 0 bài báo nào lấp khoảng trống này (không [:FILLS_GAP]).
+                            evidence={"filler_count": 0},
+                        ))
+                except Exception:
+                    _logger.warning("gap_detection_detailed: query UNFILLED_LIMITATION failed", exc_info=True)
+
+        except Exception:
+            _logger.warning("gap_detection_detailed: session acquisition failed", exc_info=True)
+            return []
+
+        return items
 
     async def graph_search(self, entities: list[str], project_id: str) -> GraphContext:
         async with self._driver.session() as session:

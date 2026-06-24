@@ -1,8 +1,8 @@
 .chatbar {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 10px 16px 6px;
+  align-items: stretch;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border-hairline);
   background: var(--surface-raised);
   flex-shrink: 0;
@@ -11,20 +11,28 @@
 .inputRow {
   display: flex;
   gap: 6px;
-  width: 50%;
-  min-width: 520px;
+  width: 100%;
+  min-width: 0;
+  align-items: flex-end;
 }
 
 .input {
   flex: 1;
+  min-width: 0;
   padding: 8px 12px;
   border: 1px solid var(--border-hairline);
   border-radius: 6px;
   font-size: 13px;
   font-family: inherit;
+  line-height: 1.5;
   background: var(--surface-base);
   color: var(--ink-primary);
   box-sizing: border-box;
+  /* Auto-grow: cao theo nội dung (height set bằng JS), nhưng không vượt ½ màn hình;
+     vượt thì scroll. resize:none để người dùng không kéo tay phá layout cột. */
+  resize: none;
+  max-height: 50vh;
+  overflow-y: auto;
 }
 
 .input:disabled {
@@ -58,9 +66,9 @@
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 6px;
-  justify-content: center;
-  width: 50%;
-  min-width: 520px;
+  justify-content: flex-start;
+  width: 100%;
+  min-width: 0;
 }
 
 .pill {

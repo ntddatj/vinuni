@@ -19,6 +19,19 @@ class CreateThreadRequest(BaseModel):
         return v or _DEFAULT_TITLE
 
 
+class RenameThreadRequest(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+    title: str = Field(..., min_length=1, max_length=500)
+
+    @field_validator("title")
+    @classmethod
+    def _normalize_title(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Tiêu đề không được để trống")
+        return v
+
+
 class ChatThreadResponse(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, from_attributes=True)
     id: str

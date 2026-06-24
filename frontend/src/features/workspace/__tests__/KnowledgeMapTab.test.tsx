@@ -5,6 +5,8 @@ import * as graphApi from '@/api/graph';
 
 const mocks = vi.hoisted(() => {
   let activeTab = 'graph';
+  let gapFocusRequest: { paperId: string } | null = null;
+  const clearGapFocus = vi.fn();
   const elementCollection = {
     length: 0,
     remove: vi.fn(),
@@ -21,9 +23,12 @@ const mocks = vi.hoisted(() => {
     layout: vi.fn().mockReturnValue({ run: vi.fn() }),
   };
   const addClassMock = vi.fn();
+  const selectMock = vi.fn();
   const nodeElement = {
     addClass: addClassMock,
     removeClass: vi.fn(),
+    select: selectMock,
+    length: 1,
   };
   const cy = {
     add: vi.fn().mockReturnThis(),
@@ -36,14 +41,19 @@ const mocks = vi.hoisted(() => {
     layout: vi.fn().mockReturnValue({ run: vi.fn() }),
     fit: vi.fn(),
     resize: vi.fn(),
+    animate: vi.fn(),
     destroy: vi.fn(),
   };
 
   return {
     cy,
     addClassMock,
+    selectMock,
+    clearGapFocus,
     getActiveTab: () => activeTab,
     setActiveTab: (tab: string) => { activeTab = tab; },
+    getGapFocusRequest: () => gapFocusRequest,
+    setGapFocusRequest: (r: { paperId: string } | null) => { gapFocusRequest = r; },
   };
 });
 
@@ -64,6 +74,8 @@ vi.mock('@/store/workspaceStore', () => ({
       activeTab: mocks.getActiveTab(),
       setPendingChatInput: vi.fn(),
       setActiveTab: vi.fn(),
+      gapFocusRequest: mocks.getGapFocusRequest(),
+      clearGapFocus: mocks.clearGapFocus,
     }),
 }));
 
@@ -111,6 +123,7 @@ describe('KnowledgeMapTab', () => {
     vi.clearAllMocks();
     vi.useRealTimers();
     mocks.setActiveTab('graph');
+    mocks.setGapFocusRequest(null);
     vi.mocked(graphApi.fetchGraph).mockResolvedValue(EMPTY_GRAPH);
     vi.mocked(graphApi.getSyncStatus).mockResolvedValue({ syncing: false });
   });
@@ -347,5 +360,38 @@ describe('KnowledgeMapTab', () => {
 
     // Legend gap đã ẩn (gapData cleared) → state đã được reset sạch
     expect(screen.queryByText('Khoảng trống')).not.toBeInTheDocument();
+  });
+
+  it('Gap→Map bridge: center + select node khi gapFocusRequest có & graph + gap data đã load', async () => {
+    // gapFocusRequest set sẵn (mô phỏng GapTab bấm "Mở trên Bản đồ"). Khi graph load xong
+    // (graphNodes>0) và gapData sẵn sàng → bật gap mode, select + center node, rồi clear signal.
+    vi.mocked(graphApi.fetchGraph).mockResolvedValue(GRAPH_WITH_DATA);
+    vi.mocked(graphApi.fetchGaps).mockResolvedValue({ flagged_nodes: [], flagged_edges: [] });
+    mocks.setGapFocusRequest({ paperId: 'paper-1' });
+
+    render(<KnowledgeMapTab projectId="proj-1" />);
+
+    // gapMode bật do signal → fetchGaps được gọi
+    await waitFor(() => expect(graphApi.fetchGaps).toHaveBeenCalledWith('proj-1'));
+    // Node mục tiêu được lấy, select và center
+    await waitFor(() => expect(mocks.cy.getElementById).toHaveBeenCalledWith('paper-1'));
+    await waitFor(() => expect(mocks.selectMock).toHaveBeenCalled());
+    await waitFor(() => expect(mocks.cy.animate).toHaveBeenCalled());
+    // Signal một chiều được clear sau khi xử lý → không rò rỉ sang lần sau
+    await waitFor(() => expect(mocks.clearGapFocus).toHaveBeenCalled());
+  });
+
+  it('Gap→Map bridge: KHÔNG center khi chưa ở tab graph (giữ signal, chưa clear)', async () => {
+    // Ở tab khác (library): bridge không được chạy center/clear → signal vẫn còn để xử lý
+    // khi người dùng thực sự sang tab Bản đồ.
+    mocks.setActiveTab('library');
+    vi.mocked(graphApi.fetchGraph).mockResolvedValue(GRAPH_WITH_DATA);
+    mocks.setGapFocusRequest({ paperId: 'paper-1' });
+
+    render(<KnowledgeMapTab projectId="proj-1" />);
+
+    await waitFor(() => expect(graphApi.fetchGraph).not.toHaveBeenCalled());
+    expect(mocks.selectMock).not.toHaveBeenCalled();
+    expect(mocks.clearGapFocus).not.toHaveBeenCalled();
   });
 });

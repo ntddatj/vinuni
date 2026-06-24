@@ -53,3 +53,22 @@ export interface GapResponse {
   flagged_nodes: GapFlaggedNode[];
   flagged_edges: GapFlaggedEdge[];
 }
+
+export interface GapPaperRef {
+  paper_id: string;
+  title: string;
+}
+
+export interface GapDetailItem {
+  id: string;
+  type: 'contradiction' | 'unfilled_limitation' | 'isolated_cluster';
+  reason: string;
+  title: string;
+  description: string;
+  papers: GapPaperRef[];
+  evidence: Record<string, unknown>;
+}
+
+export interface GapDetailResponse {
+  items: GapDetailItem[];
+}

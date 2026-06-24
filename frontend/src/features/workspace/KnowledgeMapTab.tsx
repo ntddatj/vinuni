@@ -166,6 +166,8 @@ export function KnowledgeMapTab({ projectId }: KnowledgeMapTabProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Cytoscape.Core | null>(null);
   const activeTab = useWorkspaceStore((s) => s.activeTab);
+  const gapFocusRequest = useWorkspaceStore((s) => s.gapFocusRequest);
+  const clearGapFocus = useWorkspaceStore((s) => s.clearGapFocus);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -401,6 +403,28 @@ export function KnowledgeMapTab({ projectId }: KnowledgeMapTabProps) {
       cyRef.current?.elements('.gap-contradiction, .gap-unfilled, .gap-isolated').removeStyle('border-width');
     };
   }, [gapMode, gapData]);
+
+  // Gap→Map bridge: khi GapTab gọi requestGapFocus, bật gapMode + center node trên đồ thị.
+  // gapMode là useState cục bộ — không nâng lên store; kích hoạt qua signal một chiều.
+  useEffect(() => {
+    if (!gapFocusRequest || activeTab !== 'graph') return;
+    // Bật gap mode (idempotent) — kích hoạt effect fetch gapData + tô viền.
+    setGapMode(true);
+    const cy = cyRef.current;
+    // CHỜ tới khi Cytoscape có element + gapData đã load mới center. Lần đầu mở từ
+    // GapTab, graph + gap fetch chạy song song nên node chưa tồn tại ngay → nếu center
+    // sớm sẽ trượt (length=0) rồi clear, làm mất focus. Giữ request để effect chạy lại
+    // khi graphNodes/gapData đổi; chỉ clear SAU khi đồ thị đã sẵn sàng (dù tìm thấy node
+    // hay không) để signal một chiều không rò rỉ sang lần mở tab Bản đồ về sau.
+    if (!cy || !gapData || graphNodes.length === 0) return;
+    const { paperId } = gapFocusRequest;
+    const el = cy.getElementById(paperId);
+    if (el.length > 0) {
+      el.select();
+      cy.animate({ center: { eles: el } } as Parameters<typeof cy.animate>[0]);
+    }
+    clearGapFocus();
+  }, [gapFocusRequest, activeTab, gapData, graphNodes, clearGapFocus]);
 
   // Sync-status polling (10s interval, chỉ khi tab Bản đồ Tri thức đang active — AC#18)
   useEffect(() => {

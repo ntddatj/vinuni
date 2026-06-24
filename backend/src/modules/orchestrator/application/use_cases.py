@@ -12,11 +12,13 @@ from backend.src.modules.ingestion.infrastructure.chunk_orm_models import ChildC
 from backend.src.modules.ingestion.infrastructure.orm_models import PaperORM
 from backend.src.modules.orchestrator.application.dtos import (
     CreateThreadDTO,
+    DeleteThreadDTO,
     GetCitationDetailDTO,
     GetSuggestionsDTO,
     GetThreadMessagesDTO,
     InvokeDTO,
     ListThreadsDTO,
+    RenameThreadDTO,
     SendMessageDTO,
 )
 from backend.src.modules.orchestrator.application.graph import build_graph
@@ -34,6 +36,50 @@ logger = logging.getLogger(__name__)
 
 # Strong references tới background streaming tasks để event loop không GC chúng giữa chừng.
 _background_tasks: set[asyncio.Task] = set()
+
+# Tiêu đề mặc định khi tạo thread mới. Tiêu đề tóm tắt do LLM sinh chỉ ghi đè khi
+# thread vẫn còn mang đúng tiêu đề này (tránh đè lên tên user đã tự đổi).
+_DEFAULT_THREAD_TITLE = "Cuộc trò chuyện mới"
+
+
+def _spawn_background(coro) -> None:
+    """Tạo background task có strong-ref để không bị GC, tự dọn khi xong."""
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
+async def _generate_thread_title(thread_id: str, user_id: str, message: str) -> None:
+    """Sinh tiêu đề tóm tắt từ tin nhắn đầu bằng LLM, lưu vào thread.
+
+    Chạy nền (fire-and-forget): không chặn luồng gửi tin. Mọi lỗi đều nuốt và log —
+    tiêu đề mặc định vẫn dùng được nếu sinh thất bại.
+    """
+    from langchain_core.messages import HumanMessage as _HumanMessage
+
+    from backend.src.shared.infra.llm.router import LLMRouter
+
+    try:
+        async with AsyncSessionMaker() as session:
+            repo = PostgresChatThreadRepository(session)
+            thread = await repo.find_by_id(thread_id)
+            # Bỏ qua nếu thread đã bị xóa hoặc đã có tiêu đề (user đổi tên / đã sinh trước đó).
+            if thread is None or thread.title != _DEFAULT_THREAD_TITLE:
+                return
+
+            llm = await LLMRouter(session).get_llm_client(user_id)
+            prompt = (
+                "Tóm tắt câu hỏi sau thành một tiêu đề ngắn gọn, tối đa 8 từ, bằng tiếng Việt. "
+                "Chỉ trả về tiêu đề, không dùng dấu ngoặc kép, không kết thúc bằng dấu chấm.\n\n"
+                f"Câu hỏi: {message}"
+            )
+            response = await llm.ainvoke([_HumanMessage(content=prompt)])
+            raw = response.content if isinstance(response.content, str) else ""
+            title = raw.strip().strip('"').strip("'").splitlines()[0].strip() if raw.strip() else ""
+            if title:
+                await repo.update_title(thread_id, title[:200])
+    except Exception:
+        logger.warning("Không sinh được tiêu đề cho thread %s", thread_id, exc_info=True)
 
 
 async def _assert_project_owned_by_user(
@@ -84,6 +130,35 @@ class ListThreadsUseCase:
         )
 
 
+class RenameThreadUseCase:
+    def __init__(self, repo: ChatThreadRepository) -> None:
+        self._repo = repo
+
+    async def execute(self, dto: RenameThreadDTO) -> ChatThread:
+        thread = await self._repo.find_by_id(dto.thread_id)
+        if thread is None:
+            raise ThreadNotFoundError(dto.thread_id)
+        if thread.user_id != dto.user_id:
+            raise ThreadAccessDeniedError(dto.thread_id)
+        updated = await self._repo.update_title(dto.thread_id, dto.title)
+        if updated is None:
+            raise ThreadNotFoundError(dto.thread_id)
+        return updated
+
+
+class DeleteThreadUseCase:
+    def __init__(self, repo: ChatThreadRepository) -> None:
+        self._repo = repo
+
+    async def execute(self, dto: DeleteThreadDTO) -> None:
+        thread = await self._repo.find_by_id(dto.thread_id)
+        if thread is None:
+            raise ThreadNotFoundError(dto.thread_id)
+        if thread.user_id != dto.user_id:
+            raise ThreadAccessDeniedError(dto.thread_id)
+        await self._repo.delete(dto.thread_id)
+
+
 class InvokeUseCase:
     """Chạy LangGraph graph, trả về câu trả lời ngay lập tức (không SSE)."""
 
@@ -128,10 +203,17 @@ class SendMessageUseCase:
 
         await self._repo.save_message(dto.thread_id, "user", dto.message)
 
+        # Tin nhắn đầu của thread mới → sinh tiêu đề tóm tắt bằng LLM (chạy nền).
+        # Gate theo tiêu đề mặc định nên các lượt sau không sinh lại, và tên do user
+        # tự đổi không bị ghi đè.
+        if thread.title == _DEFAULT_THREAD_TITLE:
+            _spawn_background(_generate_thread_title(dto.thread_id, dto.user_id, dto.message))
+
         run_id = f"run_{uuid.uuid4().hex[:12]}"
         queue = create_run(run_id, dto.user_id)
 
-        task = asyncio.create_task(
+        # Giữ strong reference để task không bị GC; tự dọn khi xong.
+        _spawn_background(
             _stream_graph_to_queue(
                 run_id=run_id,
                 thread_id=dto.thread_id,
@@ -141,9 +223,6 @@ class SendMessageUseCase:
                 queue=queue,
             )
         )
-        # Giữ strong reference để task không bị GC; tự dọn khi xong.
-        _background_tasks.add(task)
-        task.add_done_callback(_background_tasks.discard)
         return run_id
 
 

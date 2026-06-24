@@ -4,10 +4,17 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from backend.src.modules.orchestrator.application.dtos import CreateThreadDTO, GetThreadMessagesDTO
+from backend.src.modules.orchestrator.application.dtos import (
+    CreateThreadDTO,
+    DeleteThreadDTO,
+    GetThreadMessagesDTO,
+    RenameThreadDTO,
+)
 from backend.src.modules.orchestrator.application.use_cases import (
     CreateThreadUseCase,
+    DeleteThreadUseCase,
     GetThreadMessagesUseCase,
+    RenameThreadUseCase,
 )
 from backend.src.modules.orchestrator.domain.entities import ChatThread
 from backend.src.modules.orchestrator.domain.exceptions import ThreadAccessDeniedError, ThreadNotFoundError
@@ -94,3 +101,73 @@ async def test_get_messages_returns_empty_list():
     use_case = GetThreadMessagesUseCase(repo)
     result = await use_case.execute(GetThreadMessagesDTO(thread_id="thread-1", requesting_user_id="user-1"))
     assert result == []
+
+
+@pytest.mark.asyncio
+async def test_rename_thread_success():
+    """RenameThreadUseCase đổi tiêu đề khi user sở hữu thread."""
+    repo = AsyncMock()
+    repo.find_by_id.return_value = _make_thread(user_id="user-1")
+    renamed = _make_thread(user_id="user-1")
+    renamed.title = "Tên mới"
+    repo.update_title.return_value = renamed
+    use_case = RenameThreadUseCase(repo)
+    result = await use_case.execute(
+        RenameThreadDTO(thread_id="thread-1", title="Tên mới", user_id="user-1")
+    )
+    repo.update_title.assert_called_once_with("thread-1", "Tên mới")
+    assert result.title == "Tên mới"
+
+
+@pytest.mark.asyncio
+async def test_rename_thread_raises_not_found():
+    """RenameThreadUseCase raise ThreadNotFoundError khi thread không tồn tại."""
+    repo = AsyncMock()
+    repo.find_by_id.return_value = None
+    use_case = RenameThreadUseCase(repo)
+    with pytest.raises(ThreadNotFoundError):
+        await use_case.execute(RenameThreadDTO(thread_id="ghost", title="x", user_id="user-1"))
+    repo.update_title.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_rename_thread_raises_access_denied_for_other_user():
+    """RenameThreadUseCase raise ThreadAccessDeniedError khi user không sở hữu thread."""
+    repo = AsyncMock()
+    repo.find_by_id.return_value = _make_thread(user_id="owner-99")
+    use_case = RenameThreadUseCase(repo)
+    with pytest.raises(ThreadAccessDeniedError):
+        await use_case.execute(RenameThreadDTO(thread_id="thread-1", title="x", user_id="other"))
+    repo.update_title.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_delete_thread_success():
+    """DeleteThreadUseCase xóa thread khi user sở hữu."""
+    repo = AsyncMock()
+    repo.find_by_id.return_value = _make_thread(user_id="user-1")
+    use_case = DeleteThreadUseCase(repo)
+    await use_case.execute(DeleteThreadDTO(thread_id="thread-1", user_id="user-1"))
+    repo.delete.assert_called_once_with("thread-1")
+
+
+@pytest.mark.asyncio
+async def test_delete_thread_raises_not_found():
+    """DeleteThreadUseCase raise ThreadNotFoundError khi thread không tồn tại."""
+    repo = AsyncMock()
+    repo.find_by_id.return_value = None
+    use_case = DeleteThreadUseCase(repo)
+    with pytest.raises(ThreadNotFoundError):
+        await use_case.execute(DeleteThreadDTO(thread_id="ghost", user_id="user-1"))
+    repo.delete.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_delete_thread_raises_access_denied_for_other_user():
+    """DeleteThreadUseCase raise ThreadAccessDeniedError khi user không sở hữu thread."""
+    repo = AsyncMock()
+    repo.find_by_id.return_value = _make_thread(user_id="owner-99")
+    use_case = DeleteThreadUseCase(repo)
+    with pytest.raises(ThreadAccessDeniedError):
+        await use_case.execute(DeleteThreadDTO(thread_id="thread-1", user_id="other"))
+    repo.delete.assert_not_called()

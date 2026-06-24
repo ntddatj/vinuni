@@ -4,6 +4,7 @@ import { useChatStore } from '@/store/chatStore';
 import { useProjectStore } from '@/store/projectStore';
 import { createThread } from '@/api/chat';
 import { ChatHistoryPopover } from './ChatHistoryPopover';
+import { ChatBar } from './ChatBar';
 import { MessageContent } from '@/components/MessageContent';
 import { toast } from 'sonner';
 import styles from './ConversationColumn.module.css';
@@ -50,17 +51,19 @@ export function ConversationColumn() {
     document.body.style.userSelect = 'none';
     document.body.style.cursor = 'col-resize';
 
-    // Cột nằm ở GIỮA: đo width = clientX - mép trái cột. Mép trái cột cố định
-    // trong suốt thao tác kéo nên chỉ cần lấy một lần ở mousedown.
-    const columnEl = (e.currentTarget as HTMLElement).closest('[data-role="conv-column"]') as HTMLElement | null;
-    const columnLeft = columnEl?.getBoundingClientRect().left ?? 0;
-    // Chừa tối thiểu ~320px cho cột 3 tab bên phải để không bóp nghẹt CenterWorkspace
+    // Cột nằm NGOÀI CÙNG BÊN PHẢI, thanh kéo ở mép TRÁI: đo width = mép phải cột - clientX.
+    // Mép phải cột cố định trong suốt thao tác kéo nên chỉ cần lấy một lần ở mousedown.
+    const columnEl = (e.currentTarget as HTMLElement).closest(
+      '[data-role="conv-column"]',
+    ) as HTMLElement | null;
+    const columnRight = columnEl?.getBoundingClientRect().right ?? window.innerWidth;
+    // Chừa tối thiểu ~320px cho cột 3 tab ở giữa để không bóp nghẹt CenterWorkspace
     // trên màn hình hẹp (clamp px tuyệt đối thôi là chưa đủ).
-    const maxWidth = Math.min(MAX_WIDTH_PX, window.innerWidth - columnLeft - 320);
+    const maxWidth = Math.min(MAX_WIDTH_PX, columnRight - 320);
 
     function onMouseMove(ev: MouseEvent) {
       if (!isDragging.current) return;
-      const newWidth = ev.clientX - columnLeft;
+      const newWidth = columnRight - ev.clientX;
       setWidth(Math.max(MIN_WIDTH_PX, Math.min(maxWidth, newWidth)));
     }
 
@@ -112,7 +115,9 @@ export function ConversationColumn() {
   }
 
   useEffect(() => {
-    return () => { cleanupDragRef.current?.(); };
+    return () => {
+      cleanupDragRef.current?.();
+    };
   }, []);
 
   return (
@@ -156,7 +161,7 @@ export function ConversationColumn() {
                   type="button"
                   className={styles.collapseBtn}
                 >
-                  ‹
+                  ›
                 </button>
               </div>
               {showHistory && activeProjectId && (
@@ -166,6 +171,8 @@ export function ConversationColumn() {
                 />
               )}
             </div>
+
+            <ChatBar />
 
             <div className={styles.messages}>
               {!activeProjectId && <p className={styles.hint}>{t('chat.noProject')}</p>}
@@ -187,7 +194,7 @@ export function ConversationColumn() {
                   {streamingContent === '' ? (
                     <span className={styles.thinking}>
                       {thinkingStatus
-                        ? (t(`chat.thinking.${thinkingStatus}` as any) || t('chat.thinking'))
+                        ? t(`chat.thinking.${thinkingStatus}` as any) || t('chat.thinking')
                         : t('chat.thinking')}
                     </span>
                   ) : (
@@ -210,7 +217,7 @@ export function ConversationColumn() {
           title={t('chat.show')}
           type="button"
         >
-          ›
+          ‹
         </button>
       )}
     </div>

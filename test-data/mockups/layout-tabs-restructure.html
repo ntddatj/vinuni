@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<style>
+  :root {
+    --surface-base: #EEF1F5;
+    --surface-raised: #FFFFFF;
+    --ink-primary: #1D2939;
+    --ink-secondary: #64748B;
+    --border-hairline: #E4E7EC;
+    --accent: #6366F1;
+    --accent-hover: #4F46E5;
+    --accent-strong: #4338CA;
+    --accent-soft-bg: #EEF2FF;
+    --accent-soft-border: #C7D2FE;
+    --accent-soft-text: #3730A3;
+    --surface-hover: #F2F4F7;
+    --amber-soft-bg: #FEF3C7;
+    --amber-soft-border: #FCD34D;
+    --amber-text: #92400E;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; background: #D8DEE6; color: var(--ink-primary); padding: 24px; }
+  .frame-label { font-size:14px; font-weight:700; color:#334155; margin:8px 4px 10px; display:flex; align-items:center; gap:8px; }
+  .frame-label .pillnum { background:var(--accent-strong); color:#fff; border-radius:999px; padding:2px 10px; font-size:13px; }
+  .frame { width:1600px; height:760px; box-shadow:0 6px 24px rgba(16,24,40,.12); border-radius:10px; overflow:hidden; margin-bottom:40px; }
+
+  .header { display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:56px; background:var(--surface-raised); border-bottom:1px solid var(--border-hairline); }
+  .logo { font-size:16px; font-weight:600; }
+  .badge { padding:2px 8px; background:var(--accent); color:#fff; border-radius:10px; font-size:12px; font-weight:500; margin-left:8px; }
+  .h-actions { display:flex; gap:8px; }
+  .icon-btn { padding:6px 12px; border:1px solid var(--border-hairline); border-radius:6px; background:transparent; color:var(--ink-secondary); font-size:13px; }
+
+  .layout { display:flex; flex-direction:row; height: calc(760px - 56px); overflow:hidden; background:var(--surface-base); }
+
+  .sidebar { width:220px; background:var(--surface-raised); border-right:1px solid var(--border-hairline); display:flex; flex-direction:column; padding:12px 0; flex-shrink:0; }
+  .create-btn { margin:0 12px 12px; padding:8px 12px; background:transparent; color:var(--accent); border:1px solid var(--accent); border-radius:6px; font-size:14px; font-weight:500; text-align:center; }
+  .side-label { padding:4px 16px; font-size:12px; color:var(--ink-secondary); text-transform:uppercase; letter-spacing:.04em; }
+  .proj { margin:2px 8px; padding:8px 12px; border-radius:6px; font-size:14px; color:var(--ink-primary); }
+  .proj.active { background:var(--accent-soft-bg); color:var(--accent-soft-text); font-weight:600; }
+
+  .workspace { flex:1; min-width:0; overflow:hidden; display:flex; flex-direction:column; background:var(--surface-base); }
+  /* TOP-LEVEL tabs (4) */
+  .tabBar { display:flex; align-items:center; border-bottom:1px solid var(--border-hairline); background:var(--surface-raised); padding:0 16px; flex-shrink:0; }
+  .tab { padding:12px 16px; font-size:13px; color:var(--ink-secondary); border:none; border-bottom:2px solid transparent; background:transparent; }
+  .tab.active { color:var(--accent-strong); border-bottom-color:var(--accent-strong); font-weight:600; }
+  .tab.new { position:relative; }
+  .tab.new::after { content:"MỚI"; position:absolute; top:4px; right:-2px; background:#16A34A; color:#fff; font-size:8px; padding:1px 4px; border-radius:6px; font-weight:700; }
+  .tabSep { display:flex; align-items:center; padding:0 2px; color:var(--ink-secondary); font-size:12px; }
+
+  /* SUB tabs (segmented control) */
+  .subTabWrap { padding:16px 24px 0; }
+  .subTabBar { display:inline-flex; background:var(--surface-hover); border:1px solid var(--border-hairline); border-radius:8px; padding:3px; gap:2px; }
+  .subTab { padding:7px 16px; font-size:13px; color:var(--ink-secondary); border:none; background:transparent; border-radius:6px; font-weight:500; }
+  .subTab.active { background:var(--surface-raised); color:var(--accent-strong); font-weight:600; box-shadow:0 1px 2px rgba(16,24,40,.08); }
+
+  .tabContent { flex:1; min-height:0; overflow:auto; padding:16px 24px 24px; }
+
+  .toolRow { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .toolRow .hint { font-size:12px; color:var(--ink-secondary); }
+  .uploadBtn { padding:8px 14px; background:var(--accent); color:#fff; border:none; border-radius:6px; font-size:13px; font-weight:500; }
+  .uploadGhost { padding:8px 14px; background:transparent; color:var(--accent); border:1px dashed var(--accent-soft-border); border-radius:6px; font-size:13px; font-weight:500; }
+
+  .doc { background:var(--surface-raised); border:1px solid var(--border-hairline); border-radius:8px; padding:14px 16px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; }
+  .doc h4 { margin:0 0 4px; font-size:14px; }
+  .doc p { margin:0; font-size:12px; color:var(--ink-secondary); }
+  .statusTag { font-size:11px; padding:3px 8px; border-radius:999px; font-weight:600; }
+  .st-indexed { background:#DCFCE7; color:#166534; }
+  .st-processing { background:#FEF3C7; color:#92400E; }
+  .doc-actions { display:flex; gap:6px; }
+  .doc-actions button { background:transparent; border:1px solid var(--border-hairline); border-radius:6px; padding:5px 9px; font-size:12px; color:var(--ink-secondary); }
+
+  /* Search */
+  .searchBar { display:flex; gap:8px; margin-bottom:6px; }
+  .searchInput { flex:1; padding:9px 12px; border:1px solid var(--border-hairline); border-radius:6px; font-size:13px; background:var(--surface-raised); color:var(--ink-secondary); }
+  .searchBtn { padding:9px 18px; background:var(--accent); color:#fff; border:none; border-radius:6px; font-size:13px; font-weight:500; }
+  .srcHint { font-size:12px; color:var(--ink-secondary); margin:2px 0 14px; }
+  .resCard { background:var(--surface-raised); border:1px solid var(--border-hairline); border-radius:8px; padding:14px 16px; margin-bottom:10px; }
+  .resHead { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+  .resTitle { font-size:14px; font-weight:600; color:var(--accent-strong); margin:0; }
+  .srcBadge { font-size:11px; padding:3px 8px; border-radius:6px; font-weight:600; white-space:nowrap; }
+  .src-arxiv { background:#FEE2E2; color:#B91C1C; }
+  .src-ss { background:#DBEAFE; color:#1D4ED8; }
+  .resMeta { font-size:12px; color:var(--ink-secondary); margin:5px 0; }
+  .resAbs { font-size:12px; color:#475569; margin:0 0 10px; line-height:1.5; }
+  .addBtn { padding:6px 14px; background:transparent; color:var(--accent); border:1px solid var(--accent); border-radius:6px; font-size:12px; font-weight:500; }
+
+  /* Gap tab */
+  .gapHead { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .gapHead h3 { margin:0; font-size:16px; }
+  .legend { display:flex; gap:14px; font-size:12px; color:var(--ink-secondary); }
+  .legend span { display:flex; align-items:center; gap:5px; }
+  .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .gapCard { background:var(--surface-raised); border:1px solid var(--border-hairline); border-left:4px solid var(--amber-soft-border); border-radius:8px; padding:14px 16px; margin-bottom:10px; }
+  .gapCard h4 { margin:0 0 6px; font-size:14px; display:flex; align-items:center; gap:8px; }
+  .gapType { font-size:10px; padding:2px 8px; border-radius:999px; font-weight:700; }
+  .gt-structural { background:#FEF3C7; color:#92400E; }
+  .gt-evidence { background:#E0E7FF; color:#3730A3; }
+  .gt-contradiction { background:#FEE2E2; color:#B91C1C; }
+  .gapCard p { margin:0 0 8px; font-size:12px; color:#475569; line-height:1.5; }
+  .gapCard .ev { font-size:11px; color:var(--ink-secondary); }
+
+  /* right column */
+  .column { position:relative; flex-shrink:0; width:340px; background:var(--surface-raised); border-left:1px solid var(--border-hairline); overflow:hidden; display:flex; flex-direction:column; }
+  .conv-header { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border-bottom:1px solid var(--border-hairline); }
+  .conv-title { font-size:14px; font-weight:600; margin:0; }
+  .conv-actions { display:flex; gap:4px; }
+  .conv-actions button { background:none; border:none; padding:4px 6px; border-radius:4px; font-size:14px; }
+  .chatbar { display:flex; flex-direction:column; padding:10px 12px; border-bottom:1px solid var(--border-hairline); background:var(--surface-raised); }
+  .inputRow { display:flex; gap:6px; align-items:flex-end; }
+  .input { flex:1; padding:8px 12px; border:1px solid var(--border-hairline); border-radius:6px; font-size:12px; line-height:1.5; background:var(--surface-base); color:var(--ink-secondary); }
+  .sendBtn { padding:6px 14px; background:var(--accent); color:#fff; border:none; border-radius:6px; font-size:13px; }
+  .messages { flex:1; padding:12px; display:flex; flex-direction:column; gap:8px; }
+  .bubble { max-width:90%; padding:8px 12px; border-radius:8px; font-size:12px; line-height:1.5; }
+  .userBubble { align-self:flex-end; background:var(--accent-soft-bg); color:var(--accent-soft-text); }
+  .aiBubble { align-self:flex-start; background:var(--surface-hover); }
+</style>
+</head>
+<body>
+
+<!-- ============ FRAME 1: Thư viện → sub-tab "Tài liệu trong dự án" ============ -->
+<div class="frame-label"><span class="pillnum">1</span> Tab “Thư viện Tài liệu” → tab con <b>“Tài liệu trong dự án”</b> (danh sách + nút Upload báo cáo offline)</div>
+<div class="frame">
+  <div class="header">
+    <div style="display:flex;align-items:center"><span class="logo">🔬 Trợ lý nghiên cứu</span><span class="badge">Dự án: Biến đổi khí hậu</span></div>
+    <div class="h-actions"><button class="icon-btn">🔑 API Keys</button><button class="icon-btn">Cài đặt Hệ thống</button><button class="icon-btn">Đăng xuất</button></div>
+  </div>
+  <div class="layout">
+    <div class="sidebar">
+      <button class="create-btn">+ Tạo dự án mới</button>
+      <div class="side-label">Danh sách các dự án</div>
+      <div class="proj active">📁 Biến đổi khí hậu</div>
+      <div class="proj">📁 Năng lượng tái tạo</div>
+      <div class="proj">📁 Đa dạng sinh học</div>
+    </div>
+    <div class="workspace">
+      <div class="tabBar">
+        <button class="tab active">Thư viện Tài liệu</button>
+        <span class="tabSep">›</span>
+        <button class="tab">Bản đồ Tri thức</button>
+        <span class="tabSep">›</span>
+        <button class="tab new">Khoảng trống Nghiên cứu</button>
+        <span class="tabSep">›</span>
+        <button class="tab">Hỗ trợ viết tổng quan</button>
+      </div>
+      <div class="subTabWrap">
+        <div class="subTabBar">
+          <button class="subTab active">📄 Tài liệu trong dự án</button>
+          <button class="subTab">🔍 Tìm kiếm báo cáo khoa học</button>
+        </div>
+      </div>
+      <div class="tabContent">
+        <div class="toolRow">
+          <span class="hint">4 / 15 tài liệu trong dự án</span>
+          <button class="uploadGhost">⬆ Upload báo cáo offline (PDF)</button>
+        </div>
+        <div class="doc">
+          <div><h4>📄 IPCC_AR6_Synthesis_Report.pdf</h4><p>412 đoạn • 1.247 thực thể • arXiv</p></div>
+          <div style="display:flex;align-items:center;gap:10px"><span class="statusTag st-indexed">Đã xử lý</span><div class="doc-actions"><button>Sửa</button><button>Xóa</button></div></div>
+        </div>
+        <div class="doc">
+          <div><h4>📄 Paris_Agreement_2015.pdf</h4><p>86 đoạn • 203 thực thể • Offline</p></div>
+          <div style="display:flex;align-items:center;gap:10px"><span class="statusTag st-indexed">Đã xử lý</span><div class="doc-actions"><button>Sửa</button><button>Xóa</button></div></div>
+        </div>
+        <div class="doc">
+          <div><h4>📄 Carbon_Capture_Review_2024.pdf</h4><p>Đang trích xuất ontology… 64%</p></div>
+          <div style="display:flex;align-items:center;gap:10px"><span class="statusTag st-processing">Đang xử lý</span><div class="doc-actions"><button>Sửa</button><button>Xóa</button></div></div>
+        </div>
+        <div class="doc">
+          <div><h4>📄 Renewable_Transition_Pathways.pdf</h4><p>158 đoạn • 487 thực thể • Semantic Scholar</p></div>
+          <div style="display:flex;align-items:center;gap:10px"><span class="statusTag st-indexed">Đã xử lý</span><div class="doc-actions"><button>Sửa</button><button>Xóa</button></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="column">
+      <div class="conv-header"><h3 class="conv-title">Trợ lý nghiên cứu</h3><div class="conv-actions"><button>🕐</button><button>✏️</button></div></div>
+      <div class="chatbar"><div class="inputRow"><span class="input">Hỏi trợ lý về tài liệu trong dự án…</span><button class="sendBtn">Gửi</button></div></div>
+      <div class="messages"><div class="bubble aiBubble">Dự án có 4 tài liệu. Bạn muốn tôi tóm tắt báo cáo IPCC AR6 không?</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ FRAME 2: Thư viện → sub-tab "Tìm kiếm báo cáo khoa học" ============ -->
+<div class="frame-label"><span class="pillnum">2</span> Tab “Thư viện Tài liệu” → tab con <b>“Tìm kiếm báo cáo khoa học”</b> (ô tìm kiếm + kết quả arXiv / Semantic Scholar)</div>
+<div class="frame">
+  <div class="header">
+    <div style="display:flex;align-items:center"><span class="logo">🔬 Trợ lý nghiên cứu</span><span class="badge">Dự án: Biến đổi khí hậu</span></div>
+    <div class="h-actions"><button class="icon-btn">🔑 API Keys</button><button class="icon-btn">Cài đặt Hệ thống</button><button class="icon-btn">Đăng xuất</button></div>
+  </div>
+  <div class="layout">
+    <div class="sidebar">
+      <button class="create-btn">+ Tạo dự án mới</button>
+      <div class="side-label">Danh sách các dự án</div>
+      <div class="proj active">📁 Biến đổi khí hậu</div>
+      <div class="proj">📁 Năng lượng tái tạo</div>
+      <div class="proj">📁 Đa dạng sinh học</div>
+    </div>
+    <div class="workspace">
+      <div class="tabBar">
+        <button class="tab active">Thư viện Tài liệu</button>
+        <span class="tabSep">›</span>
+        <button class="tab">Bản đồ Tri thức</button>
+        <span class="tabSep">›</span>
+        <button class="tab new">Khoảng trống Nghiên cứu</button>
+        <span class="tabSep">›</span>
+        <button class="tab">Hỗ trợ viết tổng quan</button>
+      </div>
+      <div class="subTabWrap">
+        <div class="subTabBar">
+          <button class="subTab">📄 Tài liệu trong dự án</button>
+          <button class="subTab active">🔍 Tìm kiếm báo cáo khoa học</button>
+        </div>
+      </div>
+      <div class="tabContent">
+        <div class="searchBar">
+          <input class="searchInput" value="carbon capture and storage cost analysis" />
+          <button class="searchBtn">Tìm kiếm</button>
+        </div>
+        <div class="srcHint">Tìm trên <b style="color:#B91C1C">arXiv</b> và <b style="color:#1D4ED8">Semantic Scholar</b> • 10 kết quả</div>
+
+        <div class="resCard">
+          <div class="resHead">
+            <h3 class="resTitle">Techno-economic Assessment of Carbon Capture and Storage Pathways</h3>
+            <span class="srcBadge src-arxiv">arXiv</span>
+          </div>
+          <div class="resMeta">J. Smith, A. Kumar, et al. • 2024</div>
+          <p class="resAbs">We present a comprehensive cost analysis of post-combustion CCS across cement and steel sectors, comparing marginal abatement costs under varied carbon-price scenarios…</p>
+          <button class="addBtn">+ Thêm vào dự án</button>
+        </div>
+        <div class="resCard">
+          <div class="resHead">
+            <h3 class="resTitle">A Review of Direct Air Capture Technologies and Deployment Costs</h3>
+            <span class="srcBadge src-ss">Semantic Scholar</span>
+          </div>
+          <div class="resMeta">M. Nguyen, R. Patel • 2023</div>
+          <p class="resAbs">This review synthesizes 120 studies on direct air capture, highlighting energy penalty, levelized cost per ton, and scalability barriers for national-scale deployment…</p>
+          <button class="addBtn">+ Thêm vào dự án</button>
+        </div>
+        <div class="resCard">
+          <div class="resHead">
+            <h3 class="resTitle">Carbon Pricing and Investment in Low-Carbon Technologies</h3>
+            <span class="srcBadge src-ss">Semantic Scholar</span>
+          </div>
+          <div class="resMeta">L. Tanaka, P. Oduya, et al. • 2022</div>
+          <p class="resAbs">Empirical evidence from EU ETS suggests carbon-price signals materially shift capital allocation toward CCS and renewables above a $60/tCO₂ threshold…</p>
+          <button class="addBtn">+ Thêm vào dự án</button>
+        </div>
+      </div>
+    </div>
+    <div class="column">
+      <div class="conv-header"><h3 class="conv-title">Trợ lý nghiên cứu</h3><div class="conv-actions"><button>🕐</button><button>✏️</button></div></div>
+      <div class="chatbar"><div class="inputRow"><span class="input">Gợi ý từ khoá tìm kiếm cho chủ đề này…</span><button class="sendBtn">Gửi</button></div></div>
+      <div class="messages"><div class="bubble aiBubble">Thử thêm: “marginal abatement cost curve”, “CCS retrofit feasibility”.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ FRAME 3: Tab mới "Khoảng trống Nghiên cứu" ============ -->
+<div class="frame-label"><span class="pillnum">3</span> Tab lớn mới <b>“Khoảng trống Nghiên cứu”</b> — nằm giữa “Bản đồ Tri thức” và “Hỗ trợ viết tổng quan”</div>
+<div class="frame">
+  <div class="header">
+    <div style="display:flex;align-items:center"><span class="logo">🔬 Trợ lý nghiên cứu</span><span class="badge">Dự án: Biến đổi khí hậu</span></div>
+    <div class="h-actions"><button class="icon-btn">🔑 API Keys</button><button class="icon-btn">Cài đặt Hệ thống</button><button class="icon-btn">Đăng xuất</button></div>
+  </div>
+  <div class="layout">
+    <div class="sidebar">
+      <button class="create-btn">+ Tạo dự án mới</button>
+      <div class="side-label">Danh sách các dự án</div>
+      <div class="proj active">📁 Biến đổi khí hậu</div>
+      <div class="proj">📁 Năng lượng tái tạo</div>
+      <div class="proj">📁 Đa dạng sinh học</div>
+    </div>
+    <div class="workspace">
+      <div class="tabBar">
+        <button class="tab">Thư viện Tài liệu</button>
+        <span class="tabSep">›</span>
+        <button class="tab">Bản đồ Tri thức</button>
+        <span class="tabSep">›</span>
+        <button class="tab active new">Khoảng trống Nghiên cứu</button>
+        <span class="tabSep">›</span>
+        <button class="tab">Hỗ trợ viết tổng quan</button>
+      </div>
+      <div class="tabContent">
+        <div class="gapHead">
+          <h3>🧭 Khoảng trống nghiên cứu được phát hiện</h3>
+          <div class="legend">
+            <span><i class="dot" style="background:#FCD34D"></i> Cấu trúc</span>
+            <span><i class="dot" style="background:#6366F1"></i> Thiếu bằng chứng</span>
+            <span><i class="dot" style="background:#EF4444"></i> Mâu thuẫn</span>
+          </div>
+        </div>
+        <div class="gapCard" style="border-left-color:#FCD34D">
+          <h4>Thiếu liên kết giữa chi phí CCS và chính sách carbon khu vực ASEAN <span class="gapType gt-structural">CẤU TRÚC</span></h4>
+          <p>Bản đồ tri thức có cụm “CCS cost” và cụm “carbon pricing policy” nhưng không có cạnh nối nào trong phạm vi Đông Nam Á — vùng trống cấu trúc giữa hai cụm.</p>
+          <div class="ev">📎 Dựa trên 0 cạnh nối / 9 tài liệu liên quan • mở trong Bản đồ Tri thức ›</div>
+        </div>
+        <div class="gapCard" style="border-left-color:#6366F1">
+          <h4>Hiệu suất thu giữ trực tiếp (DAC) ở quy mô công nghiệp chưa có dữ liệu thực nghiệm <span class="gapType gt-evidence">THIẾU BẰNG CHỨNG</span></h4>
+          <p>Các tài liệu mới chỉ đề cập DAC ở quy mô pilot; chưa có báo cáo nào trong dự án cung cấp số liệu vận hành ở quy mô &gt; 1 Mt/năm.</p>
+          <div class="ev">📎 3 tài liệu nhắc tới • 0 tài liệu có số liệu thực nghiệm</div>
+        </div>
+        <div class="gapCard" style="border-left-color:#EF4444">
+          <h4>Mâu thuẫn về ngưỡng giá carbon kích hoạt đầu tư CCS <span class="gapType gt-contradiction">MÂU THUẪN</span></h4>
+          <p>Tanaka 2022 cho rằng ngưỡng là $60/tCO₂, trong khi Patel 2023 báo cáo $120/tCO₂ cho cùng khu vực — cần đối chiếu phương pháp.</p>
+          <div class="ev">📎 LLM-judge: 2 tài liệu mâu thuẫn • độ tin cậy cao</div>
+        </div>
+      </div>
+    </div>
+    <div class="column">
+      <div class="conv-header"><h3 class="conv-title">Trợ lý nghiên cứu</h3><div class="conv-actions"><button>🕐</button><button>✏️</button></div></div>
+      <div class="chatbar"><div class="inputRow"><span class="input">Phân tích sâu khoảng trống số 3…</span><button class="sendBtn">Gửi</button></div></div>
+      <div class="messages"><div class="bubble userBubble">Khoảng trống nào đáng ưu tiên nghiên cứu nhất?</div><div class="bubble aiBubble">Gap “mâu thuẫn ngưỡng giá carbon” đáng ưu tiên vì có bằng chứng trực tiếp từ 2 nguồn…</div></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

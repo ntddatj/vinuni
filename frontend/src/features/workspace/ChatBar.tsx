@@ -10,7 +10,7 @@ import styles from './ChatBar.module.css';
 export function ChatBar() {
   const [inputValue, setInputValue] = useState('');
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const chatInputRef = useRef<HTMLInputElement>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const citationMapRef = useRef<Record<string, string>>({});
   const { t } = useTranslation();
@@ -57,6 +57,16 @@ export function ChatBar() {
     setTimeout(() => chatInputRef.current?.focus(), 50);
   }, [pendingChatInput, setPendingChatInput]);
 
+  // Auto-resize: textarea cao theo nội dung. height='auto' để scrollHeight phản ánh
+  // đúng chiều cao thật, rồi gán = scrollHeight. CSS max-height (½ màn hình) + overflow-y
+  // tự lo phần giới hạn và scroll khi nội dung quá dài.
+  useEffect(() => {
+    const el = chatInputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [inputValue]);
+
   useEffect(() => {
     if (!activeProjectId) {
       setSuggestions([]);
@@ -64,9 +74,15 @@ export function ChatBar() {
     }
     let cancelled = false;
     getSuggestions({ activeTab, documentCount, hasDraft: false })
-      .then((data) => { if (!cancelled) setSuggestions(data); })
-      .catch(() => { if (!cancelled) setSuggestions([]); });
-    return () => { cancelled = true; };
+      .then((data) => {
+        if (!cancelled) setSuggestions(data);
+      })
+      .catch(() => {
+        if (!cancelled) setSuggestions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [activeProjectId, documentCount, activeTab]);
 
   function handleSuggestionClick(actionKey: string) {
@@ -171,12 +187,13 @@ export function ChatBar() {
   return (
     <div className={styles.chatbar}>
       <div className={styles.inputRow}>
-        <input
+        <textarea
           ref={chatInputRef}
           className={styles.input}
           placeholder={activeProjectId ? t('chat.placeholder') : t('chat.inputDisabled')}
           disabled={!activeProjectId || isStreaming}
           value={inputValue}
+          rows={1}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -184,7 +201,6 @@ export function ChatBar() {
               handleSend();
             }
           }}
-          type="text"
         />
         <button
           className={styles.sendBtn}

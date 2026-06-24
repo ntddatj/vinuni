@@ -46,3 +46,22 @@ class GapFlaggedEdgeResponse(BaseModel):
 class GapResponse(BaseModel):
     flagged_nodes: list[GapFlaggedNodeResponse]
     flagged_edges: list[GapFlaggedEdgeResponse]
+
+
+class GapPaperRef(BaseModel):
+    paper_id: str
+    title: str
+
+
+class GapDetailItem(BaseModel):
+    id: str
+    type: str
+    reason: str
+    title: str
+    description: str
+    papers: list[GapPaperRef] = []
+    evidence: dict = {}
+
+
+class GapDetailResponse(BaseModel):
+    items: list[GapDetailItem]

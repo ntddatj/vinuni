@@ -8,18 +8,22 @@ from backend.src.modules.identity.domain.entities import User
 from backend.src.modules.identity.infrastructure.auth_dependencies import get_current_user
 from backend.src.modules.orchestrator.application.dtos import (
     CreateThreadDTO,
+    DeleteThreadDTO,
     GetSuggestionsDTO,
     GetThreadMessagesDTO,
     InvokeDTO,
     ListThreadsDTO,
+    RenameThreadDTO,
     SendMessageDTO,
 )
 from backend.src.modules.orchestrator.application.use_cases import (
     CreateThreadUseCase,
+    DeleteThreadUseCase,
     GetSuggestionsUseCase,
     GetThreadMessagesUseCase,
     InvokeUseCase,
     ListThreadsUseCase,
+    RenameThreadUseCase,
     SendMessageUseCase,
 )
 from backend.src.modules.orchestrator.domain.exceptions import ThreadAccessDeniedError, ThreadNotFoundError
@@ -33,6 +37,7 @@ from backend.src.modules.orchestrator.presentation.schemas import (
     GetSuggestionsRequest,
     InvokeRequest,
     InvokeResponse,
+    RenameThreadRequest,
     SendMessageRequest,
     SendMessageResponse,
     SuggestionItemResponse,
@@ -96,6 +101,42 @@ async def get_thread_messages(
     except ThreadAccessDeniedError as e:
         raise HTTPException(status_code=403, detail=str(e)) from e
     return [ChatMessageResponse.model_validate(m, from_attributes=True) for m in messages]
+
+
+@router.patch("/threads/{thread_id}", response_model=ChatThreadResponse)
+async def rename_thread(
+    thread_id: UUID,
+    request: RenameThreadRequest,
+    current_user: User = Depends(get_current_user),
+    repo: ChatThreadRepository = Depends(get_thread_repository),
+) -> ChatThreadResponse:
+    use_case = RenameThreadUseCase(repo)
+    try:
+        result = await use_case.execute(
+            RenameThreadDTO(thread_id=str(thread_id), title=request.title, user_id=current_user.id)
+        )
+    except ThreadNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ThreadAccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+    return ChatThreadResponse.model_validate(result, from_attributes=True)
+
+
+@router.delete("/threads/{thread_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_thread(
+    thread_id: UUID,
+    current_user: User = Depends(get_current_user),
+    repo: ChatThreadRepository = Depends(get_thread_repository),
+) -> None:
+    use_case = DeleteThreadUseCase(repo)
+    try:
+        await use_case.execute(
+            DeleteThreadDTO(thread_id=str(thread_id), user_id=current_user.id)
+        )
+    except ThreadNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ThreadAccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
 
 
 @router.post("/invoke", response_model=InvokeResponse)

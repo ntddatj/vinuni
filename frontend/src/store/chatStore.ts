@@ -12,6 +12,8 @@ interface ChatState {
   thinkingStatus: string | null;
 
   setThreads: (threads: ChatThread[]) => void;
+  updateThreadTitle: (id: string, title: string) => void;
+  removeThread: (id: string) => void;
   setActiveThreadId: (id: string | null) => void;
   setMessages: (messages: ChatMessage[]) => void;
   appendChunk: (chunk: string) => void;
@@ -51,6 +53,9 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   ...INIT,
 
   setThreads: (threads) => set({ threads }),
+  updateThreadTitle: (id, title) =>
+    set((s) => ({ threads: s.threads.map((t) => (t.id === id ? { ...t, title } : t)) })),
+  removeThread: (id) => set((s) => ({ threads: s.threads.filter((t) => t.id !== id) })),
   setActiveThreadId: (id) => set({ activeThreadId: id }),
   setMessages: (messages) => set({ messages }),
   setLoadingThreads: (v) => set({ isLoadingThreads: v }),

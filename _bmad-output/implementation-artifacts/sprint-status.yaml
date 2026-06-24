@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-06-15T17:36:00+07:00
-last_updated: 2026-06-21T20:30:00+07:00
+last_updated: 2026-06-22T12:00:00+07:00
 project: C2-App-053
 project_key: NOKEY
 tracking_system: file-system
@@ -96,6 +96,10 @@ development_status:
   # CITES rỗng dù 4.6 done — DocumentParser cắt 2 trang/4000 ký tự nên References không tới LLM.
   # Nâng giới hạn parse + 2 setting Admin (INGEST_MAX_PDF_PAGES, INGEST_MAX_EXTRACT_CHARS) + backfill.
   4-9-sua-cat-text-parse-kich-hoat-references-cites: done
+  # follow-up correct-course 2026-06-21 (sprint-change-proposal-2026-06-21-tab-restructure-gap-view.md):
+  # tái cấu trúc tab workspace: tách tab Thư viện 2 tab con + tab "Khoảng trống Nghiên cứu" card giàu.
+  # BE: endpoint /graph/gaps/detailed (Cypher tất định, không LLM). FE: shell 4 tab + GapTab. 1 story gộp, BE trước → FE.
+  4-10-tai-cau-truc-tab-workspace-tab-thu-vien-va-khoang-trong-nghien-cuu: done
   epic-4-retrospective: optional
 
   epic-5: backlog

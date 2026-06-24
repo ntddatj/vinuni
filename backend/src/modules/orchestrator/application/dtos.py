@@ -21,6 +21,19 @@ class ListThreadsDTO:
 
 
 @dataclass
+class RenameThreadDTO:
+    thread_id: str
+    title: str
+    user_id: str
+
+
+@dataclass
+class DeleteThreadDTO:
+    thread_id: str
+    user_id: str
+
+
+@dataclass
 class InvokeDTO:
     thread_id: str
     message: str

@@ -12,8 +12,17 @@ vi.mock('@/store/chatStore', () => ({
     streamingContent: '',
     isLoadingMessages: false,
     thinkingStatus: null,
+    activeThreadId: null,
     setActiveThreadId: () => {},
     setMessages: () => {},
+    setStreaming: () => {},
+    appendChunk: () => {},
+    beginStreaming: () => {},
+    commitStreamingMessage: () => {},
+    addOptimisticUserMessage: () => () => {},
+    removeMessage: () => {},
+    setThinkingStatus: () => {},
+    reset: () => {},
   }),
 }));
 

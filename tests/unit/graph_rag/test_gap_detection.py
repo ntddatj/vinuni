@@ -1,4 +1,4 @@
-"""Unit tests cho GapDetectionUseCase — AC#29."""
+"""Unit tests cho GapDetectionUseCase — AC#29 + Story 4.10 gap_detection_detailed."""
 import pytest
 
 from backend.src.modules.graph_rag.application.use_cases import GapDetectionUseCase
@@ -176,6 +176,203 @@ async def test_gap_detection_graceful_on_session_acquisition_failure():
     assert isinstance(result, GapContext)
     assert result.flagged_nodes == []
     assert result.flagged_edges == []
+
+
+# ── gap_detection_detailed tests ─────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_gap_detection_detailed_returns_empty_when_no_data():
+    """3 queries trả empty → list rỗng."""
+    driver = _FakeNeo4jDriver(run_side_effects=[[], [], []])
+    use_case = GapDetectionUseCase(driver)
+    result = await use_case.gap_detection_detailed("proj-1")
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_gap_detection_detailed_contradiction_builds_title_and_description():
+    """Query CONTRADICTS_DETAILED → 1 item với title/description ghép từ entity thật."""
+    driver = _FakeNeo4jDriver(run_side_effects=[
+        [{
+            "finding1_id": "f1", "finding2_id": "f2",
+            "paper1_id": "p1", "paper2_id": "p2",
+            "finding1_text": "Phương pháp A hiệu quả hơn B",
+            "finding2_text": "Phương pháp B hiệu quả hơn A",
+            "paper1_title": "Paper Alpha", "paper2_title": "Paper Beta",
+        }],
+        [],
+        [],
+    ])
+    use_case = GapDetectionUseCase(driver)
+    result = await use_case.gap_detection_detailed("proj-1")
+
+    assert len(result) == 1
+    item = result[0]
+    assert item.type == "contradiction"
+    assert item.reason == "contradiction"
+    # Tiêu đề ngắn gọn theo loại (giữa hai bài khác nhau) — tên bài ở papers, không nhồi tiêu đề.
+    assert item.title == "Hai nghiên cứu đưa ra kết luận trái ngược nhau"
+    assert "Phương pháp A hiệu quả hơn B" in item.description
+    assert "Phương pháp B hiệu quả hơn A" in item.description
+    assert len(item.papers) == 2
+    paper_ids = {p.paper_id for p in item.papers}
+    assert "p1" in paper_ids and "p2" in paper_ids
+    assert {p.title for p in item.papers} == {"Paper Alpha", "Paper Beta"}
+
+
+@pytest.mark.asyncio
+async def test_gap_detection_detailed_contradiction_same_paper_title():
+    """Mâu thuẫn nội tại (2 finding cùng 1 bài, paper1_id == paper2_id) → tiêu đề riêng + paper_count=1."""
+    driver = _FakeNeo4jDriver(run_side_effects=[
+        [{
+            "finding1_id": "f1", "finding2_id": "f2",
+            "paper1_id": "p1", "paper2_id": "p1",
+            "finding1_text": "Tăng đa dạng vi sinh", "finding2_text": "Giảm đa dạng vi sinh",
+            "paper1_title": "Tổng quan ngô Bt", "paper2_title": "Tổng quan ngô Bt",
+        }],
+        [],
+        [],
+    ])
+    use_case = GapDetectionUseCase(driver)
+    result = await use_case.gap_detection_detailed("proj-1")
+    assert len(result) == 1
+    item = result[0]
+    assert item.title == "Hai kết luận trái ngược trong cùng một nghiên cứu"
+    assert item.evidence.get("paper_count") == 1
+
+
+@pytest.mark.asyncio
+async def test_gap_detection_detailed_contradiction_dedup_reciprocal_edges():
+    """CONTRADICTS có hướng — cả f1→f2 lẫn f2→f1 cho cùng cặp → chỉ 1 card (khử trùng theo cặp)."""
+    driver = _FakeNeo4jDriver(run_side_effects=[
+        [
+            {
+                "finding1_id": "f1", "finding2_id": "f2",
+                "paper1_id": "p1", "paper2_id": "p2",
+                "finding1_text": "A", "finding2_text": "B",
+                "paper1_title": "Paper Alpha", "paper2_title": "Paper Beta",
+            },
+            {
+                "finding1_id": "f2", "finding2_id": "f1",
+                "paper1_id": "p2", "paper2_id": "p1",
+                "finding1_text": "B", "finding2_text": "A",
+                "paper1_title": "Paper Beta", "paper2_title": "Paper Alpha",
+            },
+        ],
+        [],
+        [],
+    ])
+    use_case = GapDetectionUseCase(driver)
+    result = await use_case.gap_detection_detailed("proj-1")
+    contradictions = [i for i in result if i.type == "contradiction"]
+    assert len(contradictions) == 1
+
+
+@pytest.mark.asyncio
+async def test_gap_detection_detailed_evidence_has_no_internal_ids():
+    """Evidence chỉ chứa số liệu (count) — KHÔNG lộ id nội bộ (finding/limitation id) ra UI."""
+    driver = _FakeNeo4jDriver(run_side_effects=[
+        [{
+            "finding1_id": "f1", "finding2_id": "f2",
+            "paper1_id": "p1", "paper2_id": "p2",
+            "finding1_text": "A", "finding2_text": "B",
+            "paper1_title": "Paper Alpha", "paper2_title": "Paper Beta",
+        }],
+        [],
+        [{
+            "limitation_id": "lim-1", "description": "Chưa kiểm chứng",
+            "owner_paper_id": "p-owner", "owner_paper_title": "Owner Paper",
+        }],
+    ])
+    use_case = GapDetectionUseCase(driver)
+    result = await use_case.gap_detection_detailed("proj-1")
+    for item in result:
+        keys = set(item.evidence.keys())
+        assert not any(k.endswith("_id") for k in keys), f"evidence lộ id nội bộ: {keys}"
+        assert all(isinstance(v, (int, float, str, bool)) for v in item.evidence.values())
+
+
+@pytest.mark.asyncio
+async def test_gap_detection_detailed_isolated_cluster():
+    """Query ISOLATED_DETAILED → 1 item isolated_cluster với paper title."""
+    driver = _FakeNeo4jDriver(run_side_effects=[
+        [],
+        [{"paper_id": "p-iso", "paper_title": "Isolated Paper"}],
+        [],
+    ])
+    use_case = GapDetectionUseCase(driver)
+    result = await use_case.gap_detection_detailed("proj-1")
+
+    assert len(result) == 1
+    item = result[0]
+    assert item.type == "isolated_cluster"
+    assert item.id == "p-iso"
+    assert item.title == "Nghiên cứu chưa có liên kết trích dẫn"
+    assert item.evidence.get("neighbor_count") == 0
+    assert len(item.papers) == 1
+    assert item.papers[0].paper_id == "p-iso"
+    assert item.papers[0].title == "Isolated Paper"
+
+
+@pytest.mark.asyncio
+async def test_gap_detection_detailed_unfilled_limitation():
+    """Query UNFILLED_DETAILED → 1 item unfilled_limitation với description từ l.description."""
+    driver = _FakeNeo4jDriver(run_side_effects=[
+        [],
+        [],
+        [{
+            "limitation_id": "lim-1",
+            "description": "Phương pháp chưa được kiểm chứng trên dữ liệu lớn",
+            "owner_paper_id": "p-owner",
+            "owner_paper_title": "Owner Paper",
+        }],
+    ])
+    use_case = GapDetectionUseCase(driver)
+    result = await use_case.gap_detection_detailed("proj-1")
+
+    assert len(result) == 1
+    item = result[0]
+    assert item.type == "unfilled_limitation"
+    assert item.id == "lim-1"
+    assert item.title == "Hạn chế nghiên cứu chưa được giải quyết"
+    assert item.description == "Phương pháp chưa được kiểm chứng trên dữ liệu lớn"
+    assert item.papers[0].paper_id == "p-owner"
+    assert item.papers[0].title == "Owner Paper"
+
+
+@pytest.mark.asyncio
+async def test_gap_detection_detailed_skips_limitation_with_empty_description():
+    """Limitation có description None/empty → bỏ qua (không tạo card rỗng)."""
+    driver = _FakeNeo4jDriver(run_side_effects=[
+        [],
+        [],
+        [{"limitation_id": "lim-empty", "description": "", "owner_paper_id": "p1", "owner_paper_title": "P1"}],
+    ])
+    use_case = GapDetectionUseCase(driver)
+    result = await use_case.gap_detection_detailed("proj-1")
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_gap_detection_detailed_neo4j_down_returns_empty():
+    """Neo4j down (session acquisition fail) → trả [], không raise."""
+    use_case = GapDetectionUseCase(_BrokenNeo4jDriver())
+    result = await use_case.gap_detection_detailed("proj-1")
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_gap_detection_detailed_query_exception_returns_partial():
+    """Query 1 raise, query 2 + 3 OK → chỉ trả items từ query 2 và 3."""
+    driver = _FakeNeo4jDriver(run_side_effects=[
+        Exception("Neo4j error"),
+        [{"paper_id": "p-iso", "paper_title": "Isolated Paper"}],
+        [],
+    ])
+    use_case = GapDetectionUseCase(driver)
+    result = await use_case.gap_detection_detailed("proj-1")
+    assert len(result) == 1
+    assert result[0].type == "isolated_cluster"
 
 
 # ── graph_search tests ────────────────────────────────────────────────────────

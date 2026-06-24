@@ -65,3 +65,26 @@ class PostgresChatThreadRepository(ChatThreadRepository):
         await self._db.commit()
         await self._db.refresh(orm)
         return _to_message(orm)
+
+    async def update_title(self, thread_id: str, title: str) -> ChatThread | None:
+        result = await self._db.execute(
+            select(ChatThreadORM).where(ChatThreadORM.id == thread_id)
+        )
+        orm = result.scalar_one_or_none()
+        if orm is None:
+            return None
+        orm.title = title
+        await self._db.commit()
+        await self._db.refresh(orm)
+        return _to_thread(orm)
+
+    async def delete(self, thread_id: str) -> None:
+        result = await self._db.execute(
+            select(ChatThreadORM).where(ChatThreadORM.id == thread_id)
+        )
+        orm = result.scalar_one_or_none()
+        if orm is None:
+            return
+        # chat_messages.thread_id có FK ondelete=CASCADE → tin nhắn tự xóa theo.
+        await self._db.delete(orm)
+        await self._db.commit()

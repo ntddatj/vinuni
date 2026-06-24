@@ -56,7 +56,7 @@ NFR4: Background Processing (FastAPI BackgroundTasks cho nạp file ngầm, queu
 
 ### UX Design Requirements
 
-- UX-DR1: Three-Column Layout (Sidebar trái 240px CRUD dự án. Vùng giữa chứa thanh Tab ngang: Thư viện tài liệu, Bản đồ tri thức, Hỗ trợ viết tổng quan. Cột phải là Chatbot Panel co giãn 20-40% bằng cách kéo dải biên 4px, double-click reset về 25%, nút Toggle ẩn/hiện, nút Lịch sử chat popover và nút New Chat).
+- UX-DR1: Three-Column Layout (Sidebar trái 240px CRUD dự án. Vùng giữa chứa thanh Tab ngang **4 tab** (mở rộng từ 3, correct-course 2026-06-21): Thư viện tài liệu (2 tab con: Tài liệu trong dự án | Tìm kiếm báo cáo khoa học), Bản đồ tri thức, **Khoảng trống Nghiên cứu**, Hỗ trợ viết tổng quan. Cột phải là Chatbot Panel co giãn 20-40% bằng cách kéo dải biên 4px, double-click reset về 25%, nút Toggle ẩn/hiện, nút Lịch sử chat popover và nút New Chat).
 - UX-DR2: Language Toggle (Chuyển đổi VI | EN trên Header thay đổi static labels lập tức không cần reload).
 - UX-DR3: Theme Toggle (Nút Mặt trăng/Mặt trời trên Header chuyển đổi Light Mode và Soft Dark Mode).
 - UX-DR4: New User Onboarding (Onboarding gating khi chưa có dự án: form tạo nhanh bên trái, checklist 3 bước kèm ảnh động giới thiệu bên phải).
@@ -152,7 +152,7 @@ Người dùng có thể viết literature review có hỗ trợ gợi ý của 
 
 > **📌 Trạng thái thực thi (đồng bộ từ sprint-status.yaml — 2026-06-17):**
 > Epic 1 ✅ done · Epic 2 ⏳ in-progress (2.1–2.6 done, 2.7 backlog) · Epic 3 ⏳ in-progress (3.1–3.5 done, 3.6 ready-for-dev) · Epic 4 ⏳ backlog · Epic 5 ⏳ backlog
-> Tổng: **33 story** (đã gộp từ 38 story chia nhỏ của bản kế hoạch gốc; +2 story 2.7/3.6 phát sinh trong thực thi; Epic 4 bổ sung Gap Detection backend rồi **gộp còn 5 story 4.1–4.5** (GC gộp vào 4.1) để giảm số lần vibecode — correct-course + Architect 2026-06-17; **+3 story follow-up 4.6/4.7/4.8** — CITES/FILLS_GAP producers + tách màu gap, correct-course 2026-06-18, Epic 4 mở lại in-progress; **+2 story FE 3.7/3.8** — render markdown chat + tái cấu trúc layout workspace, correct-course 2026-06-18). AC chính thức của story đã hoàn thành nằm ở file story tương ứng trong `implementation-artifacts/`.
+> Tổng: **33 story** (đã gộp từ 38 story chia nhỏ của bản kế hoạch gốc; +2 story 2.7/3.6 phát sinh trong thực thi; Epic 4 bổ sung Gap Detection backend rồi **gộp còn 5 story 4.1–4.5** (GC gộp vào 4.1) để giảm số lần vibecode — correct-course + Architect 2026-06-17; **+3 story follow-up 4.6/4.7/4.8** — CITES/FILLS_GAP producers + tách màu gap, correct-course 2026-06-18, Epic 4 mở lại in-progress; **+2 story FE 3.7/3.8** — render markdown chat + tái cấu trúc layout workspace, correct-course 2026-06-18; **+1 story BE+FE 4.10** — tái cấu trúc tab workspace (tách tab Thư viện 2 tab con + tab "Khoảng trống Nghiên cứu" card giàu, endpoint `/graph/gaps/detailed` tất định), correct-course 2026-06-21). AC chính thức của story đã hoàn thành nằm ở file story tương ứng trong `implementation-artifacts/`.
 
 ---
 
@@ -523,6 +523,28 @@ Vá lỗ hổng tích hợp lộ sau Story 4.6: `DocumentParser` cắt PDF còn 
 7. Vận hành: ghi chú chạy lại `POST /admin/backfill-graph-extraction` (idempotent) sau khi đặt giá trị → 6 paper khớp lại trên corpus đầy đủ.
 - **Lưu ý giới hạn:** paper dài hơn `INGEST_MAX_EXTRACT_CHARS` mà References sau mốc cắt vẫn mất reference (Admin nâng được). Ngưỡng `difflib` 0.85 giữ nguyên (defer từ 4.6). Giữ `INGEST_MAX_EXTRACT_CHARS` ~150k–200k để chặn token cost (nay là cận text gửi LLM).
 
+### Story 4.10: [BE+FE] Tái cấu trúc Tab Workspace — Tách tab Thư viện + Tab "Khoảng trống Nghiên cứu" (card giàu) — ⏳ backlog 🟡
+
+**BE —** endpoint đọc gap "giàu" tất định (KHÔNG LLM): `gap_detection_detailed(project_id)` tái dùng 3 query Cypher của Story 4.4, mở rộng `RETURN` lấy finding text / limitation description / paper title / đếm bằng chứng; `GET /api/projects/{project_id}/graph/gaps/detailed` → `GapDetailResponse`. JWT + owner scoping, không raise (rỗng khi sự cố). Giữ nguyên `/graph/gaps` cũ cho gap-mode trên Map.
+**FE —** (1) shell **4 tab** `Thư viện Tài liệu › Bản đồ Tri thức › Khoảng trống Nghiên cứu › Hỗ trợ viết tổng quan`; (2) tách tab Thư viện thành 2 tab con segmented ("Tài liệu trong dự án" = DocumentList + Upload báo cáo offline + IngestionProgress + cảnh báo giới hạn; "Tìm kiếm báo cáo khoa học" = ô tìm kiếm + kết quả arXiv/Semantic Scholar + Thêm vào dự án + gợi ý MECE), **state dùng chung nâng lên cha**; (3) `GapTab` render card giàu nhóm theo 3 reason (màu Story 4.8) + nút "Mở trên Bản đồ Tri thức" / "Giải thích khoảng trống này" (chat).
+
+- **Phát sinh:** correct-course 2026-06-21. Mockup: `test-data/mockups/layout-tabs-restructure.html`. Tham chiếu `sprint-change-proposal-2026-06-21-tab-restructure-gap-view.md`.
+- **🧭 Nhãn module/role:** `[graph_rag]` use case `gap_detection_detailed` + endpoint + schema (mở rộng, tái dùng Cypher) · `[frontend]` `CenterWorkspace`(+css), `LibraryTab` (tách 2 child + nâng state), `GapTab` (MỚI), `workspaceStore` (`TabKey`+`'gaps'`, `librarySubTab`), `api/graph.ts`+`types/graph.ts`, i18n.
+- **Phụ thuộc:** Story 4.4 (Cypher gap + `/graph/gaps`), 4.8 (3 màu gap), 4.2 (graph nodes/title), 4.5 (Gap Analyst cho nút giải thích). Tái dùng FR15 snapshot (`activeTab`).
+- **Quyết định chốt (Dat 2026-06-21):** (a) văn xuôi card **tất định từ đồ thị, KHÔNG LLM** (LLM chỉ khi bấm "Giải thích khoảng trống này" → Gap Analyst); (b) **1 story gộp**, thực thi **BE trước → FE sau**.
+- **Giới hạn fidelity:** `GapResponse` cũ chỉ có `{paper_id, reason}` nên endpoint `/graph/gaps/detailed` mới gánh phần text/đếm; văn phong card là nguyên văn học thuật (không diễn giải tự do).
+- **FRs:** FR3, FR5, FR7, FR9, FR16. (UX-DR1 mở rộng 3→4 tab.)
+
+**AC nháp (chi tiết hóa khi create-story):**
+1. **BE:** `gap_detection_detailed` trả list item cho cả 3 loại; CONTRADICTS kèm **2 finding text + 2 paper title**; unfilled limitation kèm **`description` + owner paper title**; isolated kèm **paper title + đếm neighbor (=0)**. Mỗi item có `type/reason/title/description/papers/evidence`.
+2. **BE:** endpoint `GET /graph/gaps/detailed` JWT + owner scoping; Neo4j lỗi → `items: []` (không raise); scope `project_id` chống IDOR. `/graph/gaps` cũ **không đổi**.
+3. **FE shell:** 4 tab đúng thứ tự, có `›` ngăn cách (pattern Story 3.8), active đúng, default `library`.
+4. **FE Thư viện:** 2 tab con segmented, mặc định "Tài liệu trong dự án". Tab "Tài liệu" = DocumentList + Upload báo cáo offline + IngestionProgress + cảnh báo `MAX_PAPERS`; xóa/sửa/xem PDF giữ nguyên (Story 2.7). Tab "Tìm kiếm" = search + kết quả + Thêm vào dự án + MECE (2.3) + degraded-union toast (2.2); giữ `searchIdRef` chống race.
+5. **FE counter dùng chung:** add-from-search ở tab "Tìm kiếm" cập nhật counter/giới hạn hiển thị ở tab "Tài liệu" — **một nguồn sự thật** `papers`/`MAX_PAPERS` ở cha `LibraryTab` (viết test riêng điểm này).
+6. **FE GapTab:** card giàu nhóm theo 3 reason, tiêu đề/mô tả/bằng chứng từ endpoint, màu khớp Story 4.8, empty state khi 0 gap, nút "Mở trên Bản đồ Tri thức" (graph tab + gap-mode + focus) + "Giải thích khoảng trống này" (chat) chạy đúng.
+7. **FR15:** `activeTab='gaps'` truyền vào `getSuggestions` không gây lỗi; gợi ý fallback an toàn nếu backend chưa có template cho tab này.
+8. **Regression:** Map gap-mode (4.4/4.8) + Node Detail + 3 màu vẫn đúng; Cytoscape re-fit khi chuyển tab; responsive không vỡ; i18n VI/EN đủ.
+
 > **ℹ️ Garbage Collection (ARCH-2)** đã **gộp vào Story 4.1** (cùng module sync/Neo4j-lifecycle) — xem Story 4.1.
 
 ---
@@ -571,6 +593,7 @@ Landing page cuộn dọc: Hero banner, interactive demo simulator 3 cột, pric
 - **Gap Detection Backend (FR7) — Graph Extraction / GraphRAG Engine / Gap Analyst Agent:** ✅ **Đã tạo Story 4.3 (Graph Extraction), 4.4 (GraphRAG Engine + tô viền gap), 4.5 (Gap Analyst Agent)** (correct-course + Architect review 2026-06-17, sau gộp 8→6 story) để hiện thực hóa hệ con ontology học thuật (Finding/Limitation + edges CONTRADICTS/SUPPORTS/HAS_LIMITATION/FILLS_GAP), `gap_detection`/`graph_search` (Cypher traversal; Leiden communities → Phase 2), và agent phân tích khoảng trống qua chat. Trước đó Epic 4 chỉ phủ FR9 (vẽ), thiếu toàn bộ phần *sinh* dữ liệu khoảng trống mà `architecture.md` (§5.2, §6.2, §7) đã mô tả. Knowledge Map UI (Cytoscape + Node Detail) gộp thành Story 4.2. Xem Epic 4 và `sprint-change-proposal-2026-06-17-gap-detection.md`. Liên quan FR7, FR9.
 - **CITES & FILLS_GAP Producers (FR7) — kích hoạt thật Gap Detection:** ✅ **Đã tạo Story 4.6 (CITES producer), 4.7 (FILLS_GAP LLM-judge), 4.8 (tách màu 3 loại gap)** (correct-course 2026-06-18). Trước đó Story 4.4 chạy `gap_detection` nhưng `[:CITES]` và `[:FILLS_GAP]` (đã có trong ARCH §5.2) **chưa có producer** → mọi Paper bị cờ cô lập + unfilled (nhiễu), và 2 loại gap dùng chung 1 màu vàng gây nhầm. Xem `sprint-change-proposal-2026-06-18-cites-fillsgap-producers.md`. Liên quan FR7, FR9.
 - **UX Chatbot (FR6) — Markdown render + Layout workspace:** ✅ **Đã tạo Story 3.7 (render markdown câu trả lời, giữ CitationBadge) + 3.8 (tái cấu trúc layout: brand "Trợ lý nghiên cứu" + ô chat độc lập trên cùng + cột trò chuyện ở giữa, 3 tab bên phải có `›` ngăn cách)** (correct-course 2026-06-18). Trước đó câu trả lời hiện markdown thô khó đọc + ô chat bị chôn trong cột trợ lý (ẩn cột là mất ô chat). Mockup: `test-data/mockups/layout-chat-top.html`. Xem `sprint-change-proposal-2026-06-18-chat-markdown-layout.md`. Liên quan FR6, FR9.
+- **UI Tab Restructure + Gap rich view (FR3/5/7/9):** ✅ **Đã tạo Story 4.10 (shell 4 tab + tách tab Thư viện 2 tab con + tab "Khoảng trống Nghiên cứu" card giàu, endpoint `/graph/gaps/detailed` tất định không LLM)** (correct-course 2026-06-21). Trước đó tab Thư viện gộp search+upload+list một màn, và FR7 (gap) chỉ sống trong gap-mode ẩn của Bản đồ Tri thức dù đồ thị đã lưu finding/limitation text. Mockup: `test-data/mockups/layout-tabs-restructure.html`. Xem `sprint-change-proposal-2026-06-21-tab-restructure-gap-view.md`. Liên quan FR3, FR5, FR7, FR9, FR16.
 
 ---
 

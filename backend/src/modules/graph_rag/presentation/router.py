@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.src.modules.graph_rag.application.use_cases import GapDetectionUseCase, GraphReadUseCase
 from backend.src.modules.graph_rag.presentation.schemas import (
+    GapDetailItem,
+    GapDetailResponse,
     GapFlaggedEdgeResponse,
     GapFlaggedNodeResponse,
     GapResponse,
@@ -98,6 +100,32 @@ async def get_graph_gaps(
             )
             for e in gap_context.flagged_edges
         ],
+    )
+
+
+@router.get("/{project_id}/graph/gaps/detailed", response_model=GapDetailResponse)
+async def get_graph_gaps_detailed(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    repo: ProjectRepository = Depends(get_project_repository),
+) -> GapDetailResponse:
+    await _get_project_or_404(project_id, current_user, repo)
+    driver = await get_neo4j_driver()
+    use_case = GapDetectionUseCase(driver)
+    items = await use_case.gap_detection_detailed(project_id)
+    return GapDetailResponse(
+        items=[
+            GapDetailItem(
+                id=item.id,
+                type=item.type,
+                reason=item.reason,
+                title=item.title,
+                description=item.description,
+                papers=[{"paper_id": p.paper_id, "title": p.title} for p in item.papers],
+                evidence=item.evidence,
+            )
+            for item in items
+        ]
     )
 
 
